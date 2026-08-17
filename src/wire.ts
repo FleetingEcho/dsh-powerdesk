@@ -14,6 +14,7 @@ export type ResttyErrorCode =
   | 'method-error'
   | 'pty-error'
   | 'pty-deps-missing'
+  | 'search-deps-missing'
   | 'internal'
 
 /** One API failure with its wire code and HTTP status. */

@@ -42,7 +42,7 @@
  * the current chunk script on the next lazy open.
  */
 /** The chunks built into this plugin's own bundle. */
-export type BuiltinChunkName = 'terminal' | 'browser' | 'editor'
+export type BuiltinChunkName = 'terminal' | 'browser' | 'editor' | 'settings'
 
 /**
  * A loadable chunk: a built-in name, or `ext:<id>` for a user-installed

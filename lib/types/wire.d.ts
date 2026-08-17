@@ -6,7 +6,7 @@
  */
 import type { ResttyHttpRequest, ResttyHttpResponse } from './context-types.ts';
 /** Machine-readable error codes of the restty API. */
-export type ResttyErrorCode = 'bad-request' | 'not-found' | 'forbidden' | 'method-error' | 'pty-error' | 'pty-deps-missing' | 'internal';
+export type ResttyErrorCode = 'bad-request' | 'not-found' | 'forbidden' | 'method-error' | 'pty-error' | 'pty-deps-missing' | 'search-deps-missing' | 'internal';
 /** One API failure with its wire code and HTTP status. */
 export declare class ResttyError extends Error {
     readonly code: ResttyErrorCode;

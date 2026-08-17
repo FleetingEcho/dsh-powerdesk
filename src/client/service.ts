@@ -128,6 +128,8 @@ export interface TabComponentProps {
   onToggleDir?: (path: string) => void
   onReferenceFile?: (path: string) => void
   onOpenFile?: (path: string) => void
+  /** Open a file and scroll/select `line` (Search tab result clicks). */
+  onOpenFileAtLine?: (path: string, line: number) => void
   onOpenDiff?: (tab: SidebarTab) => void
   onSubagentJump?: (childSessionId: string) => void
 }
@@ -379,6 +381,8 @@ export interface PowerdeskSidebarService {
   activateTab(tabId: string, scope?: SessionScope): void
   /** Open a file in the sidebar editor of `scope`'s session (title defaults to the file name). */
   openFile(scope: SessionScope, path: string, title?: string): void
+  /** Open a file and scroll/select `line` (Search tab result clicks). */
+  openFileAtLine(scope: SessionScope, path: string, line: number, title?: string): void
 }
 
 /** Extract the lowercase extension without leading dot from a path. */
@@ -440,6 +444,7 @@ export const SIDEBAR_SERVICE_VERSION = '0.12.3'
  * - 'tabMeta': SidebarTab.meta (seeds, createTab, updateTab, persistence)
  * - 'pluginSettings': SidebarSettingsDeclaration.pluginToggles/render
  * - 'urlTarget' (v0.13.0): TabDescriptor.urlTarget (external-link claims)
+ * - 'openFileAtLine' (v0.14.0): PowerdeskSidebarService.openFileAtLine
  */
 export const SIDEBAR_FEATURES = [
   'badge',
@@ -451,6 +456,7 @@ export const SIDEBAR_FEATURES = [
   'tabMeta',
   'pluginSettings',
   'urlTarget',
+  'openFileAtLine',
 ] as const
 
 /** Run one plugin callback; a throw is logged and never breaks the caller. */
@@ -782,6 +788,18 @@ export function createPowerdeskSidebarService(store: SidebarStore): PowerdeskSid
     openTab({ type: 'editor', title: title ?? baseNameOf(path), path, id: `editor:${path}` }, scope)
   }
 
+  /** Open a file and scroll it to `line` (Search tab result clicks). Reuses
+   *  `openFile`'s mint-or-focus path, then unconditionally patches the
+   *  editor tab's `meta` — `openTab`'s dedupe only applies a URL seed's path
+   *  on CREATION, never on a focus of an already-open tab, so a second click
+   *  on a different match in the same file would otherwise never move the
+   *  cursor. `updateTab` patches by id regardless of creation/focus, so this
+   *  works either way; the id is deterministic (`editor:<path>`, set above). */
+  const openFileAtLine = (scope: SessionScope, path: string, line: number, title?: string): void => {
+    openFile(scope, path, title)
+    updateTab(`editor:${path}`, { meta: { line } })
+  }
+
   return {
     registerTab,
     registerFileViewer,
@@ -802,6 +820,7 @@ export function createPowerdeskSidebarService(store: SidebarStore): PowerdeskSid
     updateTab,
     activateTab,
     openFile,
+    openFileAtLine,
   }
 }
 

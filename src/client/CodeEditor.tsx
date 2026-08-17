@@ -12,7 +12,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import clsx from 'clsx'
 import { EditorView, basicSetup } from 'codemirror'
-import { EditorState, type Extension } from '@codemirror/state'
+import { EditorSelection, EditorState, type Extension } from '@codemirror/state'
 import { keymap } from '@codemirror/view'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
@@ -31,6 +31,21 @@ import css from './sidebar.module.css'
 export interface CodeEditorProps {
   path: string
   visible: boolean
+  /** Scroll to and select this 1-based line on mount, and again whenever it
+   *  changes while the SAME file stays open (Search tab result clicks —
+   *  see EditorTabView / service.openFileAtLine). */
+  initialLine?: number
+}
+
+/** Move the cursor to (and center-scroll) a 1-based line, clamped to the doc. */
+function jumpToLine(view: EditorView, line: number): void {
+  const clamped = Math.max(1, Math.min(line, view.state.doc.lines))
+  const pos = view.state.doc.line(clamped).from
+  view.dispatch({
+    selection: EditorSelection.cursor(pos),
+    effects: EditorView.scrollIntoView(pos, { y: 'center' }),
+  })
+  view.focus()
 }
 
 function basenameOf(path: string): string {
@@ -100,7 +115,7 @@ const dracula: readonly [Extension, Extension] = [
 
 type LoadState = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready' }
 
-export function CodeEditor({ path }: CodeEditorProps): ReactNode {
+export function CodeEditor({ path, initialLine }: CodeEditorProps): ReactNode {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const viewRef = useRef<EditorView | null>(null)
   const savedContentRef = useRef('')
@@ -158,6 +173,14 @@ export function CodeEditor({ path }: CodeEditorProps): ReactNode {
           ],
         }),
       })
+      // Initial jump for a freshly-opened tab: by the time this mounts,
+      // `service.openFileAtLine` has already set tab.meta.line synchronously
+      // (openFile then updateTab, both before React's next render), so the
+      // FIRST render already carries the right `initialLine` — captured here
+      // via closure (this effect only re-runs on `path` change, by design;
+      // a line change on an ALREADY-open file is handled by the separate
+      // effect below instead, which doesn't force a reload).
+      if (initialLine !== undefined) jumpToLine(viewRef.current, initialLine)
       setState({ status: 'ready' })
     }).catch((error: unknown) => {
       if (cancelled) return
@@ -170,6 +193,18 @@ export function CodeEditor({ path }: CodeEditorProps): ReactNode {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path])
+
+  // A search-result click on a file that is ALREADY open (same `path`, so
+  // the mount effect above doesn't rerun and the view stays alive) still
+  // needs the cursor to jump to the new match — `initialLine` changing is
+  // exactly that signal. No-ops while the view hasn't mounted yet (the
+  // mount effect's own inline jump above covers that first-paint case).
+  useEffect(() => {
+    if (initialLine === undefined) return
+    const view = viewRef.current
+    if (view === null) return
+    jumpToLine(view, initialLine)
+  }, [initialLine])
 
   // CodeMirror's own internal resize handling can miss layout changes that
   // happen to its container without the container's OWN size ever settling

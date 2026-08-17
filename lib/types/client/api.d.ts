@@ -23,6 +23,38 @@ export type TerminalDepsStatus = {
     /** Optional supplementary hint. */
     note?: string;
 };
+/** Ripgrep dependency status (mirror of the host's RipgrepDepsStatus). */
+export type SearchDepsStatus = {
+    ok: true;
+} | {
+    ok: false;
+    /** Why no `rg` candidate resolved. */
+    cause: string;
+    /** The pasteable repair command (terminal/cmd). */
+    command: string;
+    /** The detected profile name (null when undetected). */
+    profile: string | null;
+    /** Optional supplementary hint. */
+    note?: string;
+};
+/** One content-search match (mirror of the host's SearchMatch). */
+export interface SearchMatch {
+    line: number;
+    text: string;
+    /** [start, end) byte offsets of each matched run within `text`. */
+    ranges: [number, number][];
+}
+/** One file's matches (mirror of the host's SearchFileResult). */
+export interface SearchFileResult {
+    path: string;
+    matches: SearchMatch[];
+}
+/** search.grep's result (mirror of the host's SearchGrepResult). */
+export interface SearchGrepResult {
+    files: SearchFileResult[];
+    /** True when the server-side match/time cap cut the search short. */
+    truncated: boolean;
+}
 /** One browser.probe wire result (the host's fetch of the target's headers). */
 export type BrowserProbeResult = {
     reachable: boolean;
@@ -148,6 +180,13 @@ export declare const api: {
     fsHome: (signal?: AbortSignal) => Promise<{
         path: string;
     }>;
+    /** Content search over a directory via ripgrep (Search tab). */
+    searchGrep: (path: string, query: string, signal?: AbortSignal) => Promise<SearchGrepResult>;
+    /** Ripgrep dependency status: fetched when the Search tab needs to show a
+     *  repair banner (no `/powerdesk/ws/*` upgrade to close-marker off of here
+     *  — search is a plain buffered POST, so the client just checks this
+     *  directly rather than reacting to a socket close). */
+    searchDeps: (signal?: AbortSignal) => Promise<SearchDepsStatus>;
     /** Installed extensions plus the config gate (answers even when disabled,
      *  so the settings card can explain why nothing loads). */
     extList: (signal?: AbortSignal) => Promise<ExtensionListResult>;

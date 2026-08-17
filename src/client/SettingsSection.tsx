@@ -13,14 +13,23 @@
  * `sidebar` face (the optional PowerdeskSidebarService, probed via
  * `ctx.get('powerdeskSidebar')`).
  */
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ComponentType, type ReactNode } from 'react'
 import clsx from 'clsx'
 import type { PowerdeskSidebarService, TabDescriptor } from './service.ts'
 import type { ExtensionHost } from './extensions.ts'
 import { ExtensionsPanel } from './ExtensionsPanel.tsx'
-import { TerminalAppearancePanel } from './TerminalAppearancePanel.tsx'
+import { lazyChunkComponent } from './lazy-chunk.tsx'
 import { t } from './locales.ts'
 import css from './sidebar.module.css'
+
+/** The lazy terminal-appearance panel: `@radix-ui/react-select` (and the
+ *  popper/floating-ui/dismissable-layer/focus-scope/portal stack it drags
+ *  in) loads only when the user actually opens Settings, not at plugin
+ *  startup — see chunks/settings.tsx. */
+const TerminalAppearancePanelLazy = lazyChunkComponent<object>(
+  'settings',
+  (mod) => mod.TerminalAppearancePanel as ComponentType<object> | undefined,
+)
 
 /** The shell-supplied owner props (SettingsSectionOwnerProps: `close`). */
 export interface SettingsSectionOwnerProps {
@@ -132,7 +141,7 @@ export function SettingsSection({ close, sidebar, extensions }: SettingsSectionP
       {/* Terminal appearance (font family/weight/size/theme + PTY backend).
           Lives here, not on the terminal page, so every terminal shares one
           appearance and the tab surface stays focused on output. */}
-      <TerminalAppearancePanel />
+      <TerminalAppearancePanelLazy />
       {/* Extension tabs appear in the grid above like any other tab type
           (with the same enable/disable switch); this block is only about
           getting them onto disk and back off again. */}

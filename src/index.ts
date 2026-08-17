@@ -35,6 +35,8 @@ import { RustPtyManager } from './rust-pty-manager.ts'
 import { handleClientMessage } from './pty-wire.ts'
 import { extractFrameAncestors } from './browser-probe.ts'
 import { fsCreate, fsDelete, fsHome, fsList, fsListMarkdownTree, fsMkdir, fsRead, fsRename, fsWrite } from './fs-api.ts'
+import { searchGrep } from './search-api.ts'
+import { searchDepsStatus } from './search-deps.ts'
 import {
   PTY_DEPS_MISSING,
   depsStatus,
@@ -202,6 +204,11 @@ function buildApi(
     'fs.listMarkdownTree': (payload) => fsListMarkdownTree(requireString(payload, 'path')),
     // The folder-picker modal's starting point.
     'fs.home': () => fsHome(),
+    // Search tab: content search over a directory via ripgrep (see
+    // search-api.ts / search-deps.ts). `search.deps` mirrors `terminal.deps`
+    // — the client fetches it to show a repair banner when `rg` is missing.
+    'search.grep': (payload) => searchGrep(requireString(payload, 'path'), requireString(payload, 'query')),
+    'search.deps': () => searchDepsStatus(),
     // ── User-installed extensions ─────────────────────────────────────────
     // `ext.list` answers even while the feature is disabled, so the settings
     // card can explain WHY nothing loads instead of rendering an empty list.

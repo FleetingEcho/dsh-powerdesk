@@ -68,6 +68,30 @@ function Ensure-Prebuilt([string]$PluginRoot, [string]$Tag) {
   throw 'Could not obtain the platform PTY binary. Install the Rust toolchain and run scripts/build-rust.sh, or set $env:PREBUILT_BASE.'
 }
 
+# ripgrep (Search tab): same download convention as the PTY binary, but
+# non-fatal — search-deps.ts falls back to a `rg` already on PATH when the
+# prebuilt copy is missing, which many dev machines already have.
+function Download-Ripgrep([string]$Tag, [string]$DestDir) {
+  $triple = Detect-Triple
+  $url = "$PREBUILT_BASE/$Tag/rg-$triple.exe"
+  if ($DryRun) { Write-Host "[dry-run] would download $url -> $DestDir\rg.exe"; return $true }
+  New-Item -ItemType Directory -Force -Path $DestDir | Out-Null
+  Write-Host "Downloading prebuilt ripgrep binary: $url"
+  try {
+    Invoke-WebRequest -Uri $url -OutFile (Join-Path $DestDir 'rg.exe') -UseBasicParsing
+    return $true
+  } catch {
+    Write-Warning "Ripgrep prebuilt download failed: $_"
+    return $false
+  }
+}
+
+function Ensure-Ripgrep([string]$PluginRoot, [string]$Tag) {
+  $dest = Join-Path $PluginRoot "prebuilt\$(Detect-Triple)"
+  if (Download-Ripgrep $Tag $dest) { return }
+  Write-Warning 'ripgrep prebuilt download failed; search-deps.ts will fall back to a `rg` on PATH, if any.'
+}
+
 # ── Repair ──────────────────────────────────────────────────────────────────
 if ($Repair) {
   $dshHome = if ($env:DSH_HOME) { $env:DSH_HOME } else { Join-Path $env:USERPROFILE '.dsh' }
@@ -78,6 +102,7 @@ if ($Repair) {
   $ver = (node -p "require('$pluginRoot/package.json').version" 2>$null)
   $tag = if ($ver) { "v$ver" } else { Resolve-Tag }
   Ensure-Prebuilt $pluginRoot $tag
+  Ensure-Ripgrep $pluginRoot $tag
   Write-Host 'Repair complete. Restart DSH and hard-refresh the page.'
   return
 }
@@ -105,6 +130,7 @@ if (-not (Test-Path $pluginRoot)) {
   Write-Warning "Could not find $pluginRoot; skipping prebuilt download (run -Repair later)."
 } else {
   Ensure-Prebuilt $pluginRoot $tag
+  Ensure-Ripgrep $pluginRoot $tag
 }
 
 Write-Host "Install complete: $PKG@$Version"

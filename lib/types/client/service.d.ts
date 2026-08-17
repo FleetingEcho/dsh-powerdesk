@@ -110,6 +110,8 @@ export interface TabComponentProps {
     onToggleDir?: (path: string) => void;
     onReferenceFile?: (path: string) => void;
     onOpenFile?: (path: string) => void;
+    /** Open a file and scroll/select `line` (Search tab result clicks). */
+    onOpenFileAtLine?: (path: string, line: number) => void;
     onOpenDiff?: (tab: SidebarTab) => void;
     onSubagentJump?: (childSessionId: string) => void;
 }
@@ -357,6 +359,8 @@ export interface PowerdeskSidebarService {
     activateTab(tabId: string, scope?: SessionScope): void;
     /** Open a file in the sidebar editor of `scope`'s session (title defaults to the file name). */
     openFile(scope: SessionScope, path: string, title?: string): void;
+    /** Open a file and scroll/select `line` (Search tab result clicks). */
+    openFileAtLine(scope: SessionScope, path: string, line: number, title?: string): void;
 }
 /**
  * Find the tab type that claims an intercepted external-link URL (v0.13.0+).
@@ -388,8 +392,9 @@ export declare const SIDEBAR_SERVICE_VERSION = "0.12.3";
  * - 'tabMeta': SidebarTab.meta (seeds, createTab, updateTab, persistence)
  * - 'pluginSettings': SidebarSettingsDeclaration.pluginToggles/render
  * - 'urlTarget' (v0.13.0): TabDescriptor.urlTarget (external-link claims)
+ * - 'openFileAtLine' (v0.14.0): PowerdeskSidebarService.openFileAtLine
  */
-export declare const SIDEBAR_FEATURES: readonly ["badge", "tabLifecycle", "updateTab", "openFile", "targetedOpen", "stateSubscription", "tabMeta", "pluginSettings", "urlTarget"];
+export declare const SIDEBAR_FEATURES: readonly ["badge", "tabLifecycle", "updateTab", "openFile", "targetedOpen", "stateSubscription", "tabMeta", "pluginSettings", "urlTarget", "openFileAtLine"];
 /**
  * Create one BetterSidebar service bound to a store. The service owns the
  * tab/viewer registries (Map + listener set) and proxies openTab/closeTab

@@ -250,7 +250,8 @@ export function SidebarShell(props: { ctx: Context; store: SidebarStore; service
     // Per-tab one-line descriptions for the empty-state "new page" cards.
     // Keyed by the stable tab id literal each descriptor carries (terminal
     // = 'dsh-powerdesk:terminal', explorer = 'dsh-powerdesk:explorer',
-    // notes = 'dsh-powerdesk:notes', browser = 'dsh-powerdesk:browser').
+    // notes = 'dsh-powerdesk:notes', browser = 'dsh-powerdesk:browser',
+    // search = 'dsh-powerdesk:search').
     // Unknown tabs (e.g. an extension tab) get no description — the card
     // just shows its label.
     const descriptions: Record<string, string> = {
@@ -258,6 +259,7 @@ export function SidebarShell(props: { ctx: Context; store: SidebarStore; service
       'dsh-powerdesk:explorer': t('cardExplorerDesc'),
       'dsh-powerdesk:notes': t('cardNotesDesc'),
       'dsh-powerdesk:browser': t('cardBrowserDesc'),
+      'dsh-powerdesk:search': t('cardSearchDesc'),
     }
     return service.getTabs()
       .filter(descriptor => descriptor.hidden !== true && service.isTabEnabled(descriptor.id))

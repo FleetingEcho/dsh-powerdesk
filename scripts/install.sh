@@ -133,6 +133,38 @@ ensure_prebuilt() {
   die "无法获取平台 PTY 二进制。请安装 Rust 工具链后运行 scripts/build-rust.sh，或设置 PREBUILT_BASE 指向可用的下载源。"
 }
 
+# ripgrep（Search 标签页用）：与 PTY 二进制同一套下载约定，但非致命 —
+# search-deps.ts 在找不到预编译副本时还会回退到 PATH 上的 rg，很多开发机
+# 已经装过（Homebrew/Cargo/VSCode），所以下载失败只警告，不中断安装。
+download_ripgrep() {
+  local tag="$1" dest_dir="$2"
+  local url="$PREBUILT_BASE/$tag/rg-$TRIPLE"
+  mkdir -p "$dest_dir"
+  if [ "$DRY_RUN" = true ]; then
+    say "[dry-run] 将下载 $url -> $dest_dir/rg"
+    return
+  fi
+  say "下载预编译 ripgrep 二进制：$url"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL "$url" -o "$dest_dir/rg" || return 1
+  elif command -v wget >/dev/null 2>&1; then
+    wget -qO "$dest_dir/rg" "$url" || return 1
+  else
+    return 1
+  fi
+  chmod +x "$dest_dir/rg" 2>/dev/null || true
+  say "已安装 $dest_dir/rg"
+}
+
+ensure_ripgrep() {
+  local plugin_root="$1" tag="$2"
+  local dest="$plugin_root/prebuilt/$TRIPLE"
+  if download_ripgrep "$tag" "$dest"; then
+    return 0
+  fi
+  warn "ripgrep 预编译二进制下载失败；search-deps.ts 会回退到 PATH 上的 rg（如果有的话）。"
+}
+
 # ── 修复模式：只重装二进制 ─────────────────────────────────────────────────
 if [ "$REPAIR" = true ]; then
   DSH_HOME="${DSH_HOME:-$HOME/.dsh}"
@@ -143,6 +175,7 @@ if [ "$REPAIR" = true ]; then
   # 已安装版本的 package.json 版本 → tag
   TAG="v$(node -p "require('$PLUGIN_ROOT/package.json').version" 2>/dev/null || echo latest)"
   ensure_prebuilt "$PLUGIN_ROOT" "$TAG"
+  ensure_ripgrep "$PLUGIN_ROOT" "$TAG"
   say "修复完成。请重启 DSH 并硬刷新页面。"
   exit 0
 fi
@@ -171,6 +204,7 @@ if [ ! -d "$PLUGIN_ROOT" ]; then
   warn "未找到 $PLUGIN_ROOT；跳过预编译二进制下载（请稍后运行 --repair）"
 else
   ensure_prebuilt "$PLUGIN_ROOT" "$TAG"
+  ensure_ripgrep "$PLUGIN_ROOT" "$TAG"
 fi
 
 say "安装完成：$PKG@$VERSION_SPEC"

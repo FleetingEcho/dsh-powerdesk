@@ -36,7 +36,7 @@ import { isValidExtensionId } from './extensions/manifest.ts'
 import { bundlePathOf, readExtension } from './extensions/registry.ts'
 
 /** The chunk names the client may request (mirror of src/client/chunk-loader.ts). */
-export const CHUNK_NAMES = ['terminal', 'browser', 'editor'] as const
+export const CHUNK_NAMES = ['terminal', 'browser', 'editor', 'settings'] as const
 export type ChunkName = (typeof CHUNK_NAMES)[number]
 
 /** Directory of this host-half module (lib/ — the chunk scripts live next to it). */

@@ -13,5 +13,9 @@ import { type ReactNode } from 'react';
 export interface CodeEditorProps {
     path: string;
     visible: boolean;
+    /** Scroll to and select this 1-based line on mount, and again whenever it
+     *  changes while the SAME file stays open (Search tab result clicks —
+     *  see EditorTabView / service.openFileAtLine). */
+    initialLine?: number;
 }
-export declare function CodeEditor({ path }: CodeEditorProps): ReactNode;
+export declare function CodeEditor({ path, initialLine }: CodeEditorProps): ReactNode;

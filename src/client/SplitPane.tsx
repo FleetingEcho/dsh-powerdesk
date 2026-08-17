@@ -124,6 +124,10 @@ function TabContent(props: {
           store.reduce(makeRoomBesideExplorer)
           service.openFile(scope as TabComponentProps['scope'], path)
         },
+        onOpenFileAtLine: (path: string, line: number) => {
+          store.reduce(makeRoomBesideExplorer)
+          service.openFileAtLine(scope as TabComponentProps['scope'], path, line)
+        },
       } as TabComponentProps)}
     </RenderBoundary>
   )

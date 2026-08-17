@@ -45,6 +45,7 @@ import { SidebarShell } from './SidebarShell.tsx'
 import { RenderBoundary } from './RenderBoundary.tsx'
 import { SettingsSection } from './SettingsSection.tsx'
 import { FileExplorer } from './FileExplorer.tsx'
+import { SearchView } from './SearchView.tsx'
 import css from './sidebar.module.css'
 
 /** The tab id for the browser surface (the SidebarTab.type value). */
@@ -53,6 +54,8 @@ export const POWERDESK_BROWSER_TAB_ID = 'dsh-powerdesk:browser'
 export const POWERDESK_EXPLORER_TAB_ID = EXPLORER_TAB_ID
 /** The tab id for the Notes tab (the SidebarTab.type value). */
 export const POWERDESK_NOTES_TAB_ID = 'dsh-powerdesk:notes'
+/** The tab id for the Search tab (the SidebarTab.type value). */
+export const POWERDESK_SEARCH_TAB_ID = 'dsh-powerdesk:search'
 /** The tab id for the editor. MUST stay literally 'editor' — service.ts's
  *  `openFile()` hardcodes `type: 'editor'` when it mints a file-open tab. */
 const EDITOR_TAB_ID = 'editor'
@@ -115,6 +118,16 @@ function IconFolder({ size }: { size: number }): ReactNode {
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path d="M1.75 4.25c0-.69.56-1.25 1.25-1.25h3l1.25 1.5h5.75c.69 0 1.25.56 1.25 1.25v6.25c0 .69-.56 1.25-1.25 1.25H3c-.69 0-1.25-.56-1.25-1.25z" stroke="currentColor" strokeWidth="1.25" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+/** A small magnifying-glass icon for the search tab. */
+function IconSearch({ size }: { size: number }): ReactNode {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <circle cx="6.75" cy="6.75" r="4.25" stroke="currentColor" strokeWidth="1.25" />
+      <path d="M9.9 9.9l3.35 3.35" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
     </svg>
   )
 }
@@ -269,7 +282,11 @@ function ExplorerTabView(props: TabComponentProps): ReactNode {
 function EditorTabView(props: TabComponentProps): ReactNode {
   const { tab, visible } = props as { tab: SidebarTab; visible?: boolean }
   if (tab.path === undefined) return null
-  return createElement(CodeEditorLazy, { path: tab.path, visible: visible ?? true })
+  // Set by `service.openFileAtLine` (Search tab result clicks) — a plain
+  // `meta` field, not a new SidebarTab field, so it rides the existing
+  // `updateTab({meta})` patch path with no state-tree changes.
+  const initialLine = (tab.meta as { line?: number } | undefined)?.line
+  return createElement(CodeEditorLazy, { path: tab.path, visible: visible ?? true, initialLine })
 }
 
 /** Build the explorer tab descriptor. `single: true` — one explorer tab per
@@ -289,6 +306,40 @@ function buildExplorerTabDescriptor(): TabDescriptor {
       } as SidebarTab,
     }),
     component: (props: TabComponentProps) => createElement(ExplorerTabView, props),
+  }
+  return descriptor as unknown as TabDescriptor
+}
+
+/** The sidebar Search tab view: content search over the session's cwd via
+ *  ripgrep — see SearchView.tsx. */
+function SearchTabView(props: TabComponentProps): ReactNode {
+  const { scope, onOpenFileAtLine } = props as {
+    scope: TabComponentProps['scope']
+    onOpenFileAtLine?: (path: string, line: number) => void
+  }
+  return createElement(SearchView, {
+    cwd: scope.cwd,
+    onOpenFileAtLine: onOpenFileAtLine ?? ((): void => {}),
+  })
+}
+
+/** Build the Search tab descriptor. `single: true` — one Search tab per
+ *  session; opening it again focuses the existing one instead of duplicating. */
+function buildSearchTabDescriptor(): TabDescriptor {
+  const descriptor = {
+    id: POWERDESK_SEARCH_TAB_ID,
+    title: () => t('searchTabTitle'),
+    icon: (size: number) => createElement(IconSearch, { size }),
+    order: 41,
+    single: true,
+    createTab: () => ({
+      tab: {
+        id: POWERDESK_SEARCH_TAB_ID,
+        type: POWERDESK_SEARCH_TAB_ID as TabType,
+        title: t('searchTabTitle'),
+      } as SidebarTab,
+    }),
+    component: (props: TabComponentProps) => createElement(SearchTabView, props),
   }
   return descriptor as unknown as TabDescriptor
 }
@@ -407,6 +458,10 @@ export function apply(ctx: Context): void {
   ctx.effect(
     () => service.registerTab(buildNotesTabDescriptor()),
     'dsh-powerdesk: notes tab',
+  )
+  ctx.effect(
+    () => service.registerTab(buildSearchTabDescriptor()),
+    'dsh-powerdesk: search tab',
   )
 
   // User-installed extensions register through the same service as the
