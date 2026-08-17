@@ -15,8 +15,8 @@ describe('shell resolution', () => {
     // happy path here.
   })
 
-  it('Windows: DSH_POWERDESK_SHELL env override beats pwsh probing', () => {
-    expect(defaultShell({ platform: 'win32', env: { DSH_POWERDESK_SHELL: 'pwsh-preview.exe' } })).toBe('pwsh-preview.exe')
+  it('Windows: DSH_RESTTY_SHELL env override beats pwsh probing', () => {
+    expect(defaultShell({ platform: 'win32', env: { DSH_RESTTY_SHELL: 'pwsh-preview.exe' } })).toBe('pwsh-preview.exe')
   })
 
   it('Windows: probes known pwsh install dirs when no override', () => {

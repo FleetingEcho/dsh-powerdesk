@@ -28,6 +28,11 @@ const en: Dict = {
   copy: 'Copy',
   copied: 'Copied',
   standaloneToggle: 'Toggle terminal',
+  // Sidebar shell (layout + wrapper)
+  close: 'Close',
+  newTab: 'New tab',
+  collapse: 'Collapse sidebar',
+  expand: 'Expand sidebar',
   standaloneNoSession: 'No active session. Open a conversation to use the terminal.',
   settingsFontFamilyTitle: 'Font family',
   settingsFontFamilyDesc: 'Custom font for the terminal (empty = theme code font)',
@@ -47,6 +52,7 @@ const en: Dict = {
   browserForward: 'Forward',
   refresh: 'Refresh',
   browserStart: 'Enter a URL to start browsing (sandbox mode)',
+  browserChecking: 'Checking if this site can be embedded…',
   browserBlockedScheme: 'Blocked: only http/https URLs are allowed',
   browserBlockedLoopback: 'Blocked: local and internal addresses cannot be browsed here',
   browserInvalid: 'Invalid URL',
@@ -61,6 +67,13 @@ const en: Dict = {
   standaloneToggleBrowser: 'Toggle browser',
   standaloneSurfaceTerminal: 'Terminal',
   standaloneSurfaceBrowser: 'Browser',
+  // Settings page Side card (a discoverable entry to open the surfaces)
+  settingsNav: 'Powerdesk',
+  settingsIntro: 'A GPU-accelerated terminal and a sandboxed browser for DSH, surfaced as tabs in the Powerdesk sidebar.',
+  settingsOpenTerminal: 'Open Terminal',
+  settingsOpenBrowser: 'Open Browser',
+  settingsSidebarMissing: 'The Powerdesk sidebar is available via the toggle at the top-right corner of the window.',
+  settingsOpenedHint: 'Opened in the sidebar.',
 }
 
 const zh: Dict = {
@@ -77,6 +90,11 @@ const zh: Dict = {
   copy: '复制',
   copied: '已复制',
   standaloneToggle: '切换终端',
+  // 侧边栏外壳（布局 + 包装器）
+  close: '关闭',
+  newTab: '新建标签页',
+  collapse: '收起侧边栏',
+  expand: '展开侧边栏',
   standaloneNoSession: '没有活动会话。请先打开一个对话再使用终端。',
   settingsFontFamilyTitle: '字体',
   settingsFontFamilyDesc: '终端自定义字体（留空 = 主题代码字体）',
@@ -96,6 +114,7 @@ const zh: Dict = {
   browserForward: '前进',
   refresh: '刷新',
   browserStart: '输入网址开始浏览（沙箱模式）',
+  browserChecking: '正在检查该站点是否可嵌入…',
   browserBlockedScheme: '已阻止：仅支持 http/https 链接',
   browserBlockedLoopback: '已阻止：不允许在浏览器中访问本机或内部地址',
   browserInvalid: '无效的网址',
@@ -110,6 +129,13 @@ const zh: Dict = {
   standaloneToggleBrowser: '切换浏览器',
   standaloneSurfaceTerminal: '终端',
   standaloneSurfaceBrowser: '浏览器',
+  // 设置页 Side card（一个可发现的入口，用于打开两个面板）
+  settingsNav: 'Powerdesk',
+  settingsIntro: '面向 DSH 的 GPU 加速终端与沙箱浏览器，以标签页形式在 Powerdesk 侧边栏中打开。',
+  settingsOpenTerminal: '打开终端',
+  settingsOpenBrowser: '打开浏览器',
+  settingsSidebarMissing: 'Powerdesk 侧边栏可通过窗口右上角的切换按钮打开。',
+  settingsOpenedHint: '已在侧边栏打开。',
 }
 
 const dicts: Record<string, Dict> = { en, zh }

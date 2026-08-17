@@ -12,3 +12,6 @@ prebuilt/
 .env
 .env.local
 .DS_Store
+
+# pnpm content-addressable store (sandbox artifact, not source)
+.pnpm-store/

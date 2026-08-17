@@ -1,2 +1,2 @@
 allowBuilds:
-  node-pty: set this to true or false
+  node-pty: false

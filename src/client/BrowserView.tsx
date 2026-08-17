@@ -56,6 +56,11 @@ export function BrowserView(props: BrowserViewProps): ReactNode {
   const [cursor, setCursor] = useState<number>(initialUrl !== undefined ? 0 : -1)
   /** Bumped on reload to remount the iframe (also remounts on sandbox flip). */
   const [reloadKey, setReloadKey] = useState(0)
+  /** Whether the embeddability probe is in-flight for the current url. While
+   *  true the iframe is NOT mounted (its src is withheld) so a frame-refusing
+   *  site never triggers the browser's native "refused to connect" before the
+   *  probe verdict swaps in the reason panel. */
+  const [probing, setProbing] = useState(false)
   /** TEMPORARY sandbox unlock for THIS surface only (never persists). */
   const [localUnlock, setLocalUnlock] = useState(false)
   const noSandbox = localUnlock
@@ -74,9 +79,12 @@ export function BrowserView(props: BrowserViewProps): ReactNode {
     let cancelled = false
     setEmbedBlocked(null)
     setForceEmbed(false)
+    setProbing(true)
     void api.browserProbe(url).then((probe) => {
-      if (!cancelled && embeddabilityOf(probe) === 'blocked') setEmbedBlocked(url)
-    }).catch(() => { /* unreachable: keep the plain iframe */ })
+      if (cancelled) return
+      setProbing(false)
+      if (embeddabilityOf(probe) === 'blocked') setEmbedBlocked(url)
+    }).catch(() => { if (!cancelled) setProbing(false) /* unreachable: keep the plain iframe */ })
     return () => { cancelled = true }
   }, [url, visible])
 
@@ -212,6 +220,8 @@ export function BrowserView(props: BrowserViewProps): ReactNode {
           onOpenInBrowser={() => { window.open(embedBlocked, '_blank', 'noopener') }}
           onLoadAnyway={() => { setForceEmbed(true) }}
         />
+      ) : probing ? (
+        <div className={css.browserStart}>{t('browserChecking')}</div>
       ) : (
         <iframe
           key={`${reloadKey}:${noSandbox ? 'ns' : 'sb'}`}

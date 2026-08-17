@@ -188,8 +188,34 @@ export interface Context {
    * OPTIONAL: undefined on the host side and on the client side when
    * dsh-better-sidebar is not installed (the client half then mounts the
    * standalone floating panel instead of registering a tab).
+   *
+   * NOTE: read this via `ctx.get('betterSidebar')`, NOT `ctx.betterSidebar`.
+   * Direct property access throws "cannot get property without inject" unless
+   * the service is declared in `inject`, but betterSidebar is optional (the
+   * plugin falls back to the standalone panel). `ctx.get(name)` reads the
+   * cordis store without the inject requirement and returns undefined when
+   * the service isn't (yet) provided. The field below exists only so the
+   * structural type stays a superset of the real cordis Context.
    */
   betterSidebar?: BetterSidebarService
+  /**
+   * Read an optional service from the cordis store WITHOUT the inject
+   * requirement (the cordis `ReflectService.get` built-in). Returns the
+   * service value, or undefined when not (yet) provided. Use this for
+   * optional services like `betterSidebar` instead of direct `ctx.x`
+   * access (which the inject Guard rejects).
+   */
+  get<T = any>(name: string): T | undefined
+  /**
+   * Publish a service into the cordis store so other plugins (and this
+   * plugin's own `ctx.get(name)`) can read it. DSH-vendored cordis: the
+   * service becomes available immediately at activation. Powerdesk uses
+   * this to publish its OWN `betterSidebar` service (the sidebar shell +
+   * tab registry), so the plugin is self-contained — it no longer depends
+   * on the `dsh-better-sidebar` plugin being installed to surface its
+   * terminal/browser tabs.
+   */
+  provide<T = any>(name: string, value: T): void
   /**
    * Register a lifecycle callback (DSH-vendored cordis): runs at plugin
    * activation; its returned cleanup runs at disposal.

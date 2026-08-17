@@ -33,7 +33,7 @@ describe('manifest consistency', () => {
     expect(patch).toContain(`name: '${pkg.name}'`)
   })
 
-  it('bundle-route CHUNK_NAMES is exactly [terminal] (matches tsdown + chunk-loader)', () => {
-    expect([...CHUNK_NAMES]).toEqual(['terminal'])
+  it('bundle-route CHUNK_NAMES is exactly [terminal, browser] (matches tsdown + chunk-loader)', () => {
+    expect([...CHUNK_NAMES]).toEqual(['terminal', 'browser'])
   })
 })

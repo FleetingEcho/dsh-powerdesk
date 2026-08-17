@@ -8,7 +8,7 @@
  * without `SHELL`, and the tab should still open the user's login shell
  * (e.g. zsh) instead of silently degrading to bash.
  *
- * Windows chain: explicit shell → `DSH_POWERDESK_SHELL` env override → first
+ * Windows chain: explicit shell → `DSH_RESTTY_SHELL` env override → first
  * `pwsh.exe` found on PATH or in a known install directory → the 5.1
  * fallback (`powershell.exe`).
  */
@@ -20,7 +20,7 @@ import { userInfo } from 'node:os'
 export interface ShellResolutionOptions {
   /** Platform override (defaults to `process.platform`). */
   platform?: NodeJS.Platform
-  /** Environment override; the resolver reads SHELL, DSH_POWERDESK_SHELL, PATH,
+  /** Environment override; the resolver reads SHELL, DSH_RESTTY_SHELL, PATH,
    *  ProgramW6432, ProgramFiles, LOCALAPPDATA. */
   env?: NodeJS.ProcessEnv
   /** Explicitly configured shell (the `shell` config field); wins over every
@@ -68,7 +68,7 @@ export function defaultShell(options: ShellResolutionOptions = {}): string {
   const explicit = options.explicit
   if (explicit !== undefined && explicit.trim() !== '') return explicit.trim()
   if (platform === 'win32') {
-    const envShell = env.DSH_POWERDESK_SHELL
+    const envShell = env.DSH_RESTTY_SHELL
     if (envShell !== undefined && envShell.trim() !== '') return envShell.trim()
     for (const dir of windowsPwshCandidateDirs(env)) {
       const candidate = win32Path.join(dir, 'pwsh.exe')

@@ -8,7 +8,7 @@
  * index.tsx and the standalone panel) own the subscription and pass the
  * resolved prefs to {@link ./ResttyTerminal.tsx} as props.
  */
-import type { SidebarStore, SidebarPrefs } from 'dsh-better-sidebar/client/service'
+import type { SidebarStore, SidebarPrefs } from './service.ts'
 
 /** The tab id this plugin registers with dsh-better-sidebar. */
 export const POWERDESK_TAB_ID = 'dsh-powerdesk:terminal'

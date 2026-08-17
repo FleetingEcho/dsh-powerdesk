@@ -27,8 +27,11 @@
  *   factory}) with the (require) => exports CJS closure shape.
  *
  * The lazy chunk (lib/client-terminal.js) does NOT go through the module
- * loader: it assigns its CJS factory to globalThis.__dshChunks__['terminal']
- * and is fetched on first use from /powerdesk/bundle/terminal (see
+ * loader: it assigns its CJS factory to globalThis.__dshPowerdeskChunks__['terminal']
+ * (a PLUGIN-PRIVATE registry — NOT the shared `__dshChunks__` that
+ * dsh-better-sidebar registers its own 'terminal'/'editor' chunks on; sharing
+ * it would let the two plugins overwrite each other's factory under
+ * concurrency) and is fetched on first use from /powerdesk/bundle/terminal (see
  * src/bundle-route.ts + src/client/chunk-loader.ts). The core client.js must
  * never statically import the chunk entry. `codeSplitting: false` keeps every
  * artifact a single script.
@@ -58,6 +61,7 @@ const CLIENT_EXTERNALS = [
   'react-dom/client',
   'cordis',
   '@deepseek-ai/dsh-client-ui-slots',
+  '@deepseek-ai/dsh-client-ui-primitives',
   '@deepseek-ai/dsh-client-web-react',
   '@deepseek-ai/dsh-client-runtime/client',
 ]
@@ -164,7 +168,7 @@ function chunkBundle(name: string): UserConfig {
     outputOptions: {
       entryFileNames: `client-${name}.js`,
       sourcemapPathTransform: browserSourcePath,
-      banner: `globalThis.__dshChunks__ = globalThis.__dshChunks__ || {}; globalThis.__dshChunks__[${JSON.stringify(name)}] = (require) => {`,
+      banner: `globalThis.__dshPowerdeskChunks__ = globalThis.__dshPowerdeskChunks__ || {}; globalThis.__dshPowerdeskChunks__[${JSON.stringify(name)}] = (require) => {`,
       footer: 'return module.exports; };',
       intro: 'var module = { exports: {} }; var exports = module.exports;',
       codeSplitting: false,
@@ -238,7 +242,7 @@ function makeCssPlugin(pluginId: string): BuildPlugin {
 }
 
 /** The lazy chunk names (keep in sync with src/bundle-route.ts CHUNK_NAMES). */
-const CHUNKS = ['terminal']
+const CHUNKS = ['terminal', 'browser']
 
 export default [
   {

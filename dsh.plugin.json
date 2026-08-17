@@ -2,7 +2,7 @@
   "id": "dsh-external/dsh-powerdesk",
   "version": "0.1.0",
   "main": "./lib/index.js",
-  "description": "A developer workbench for DSH: a GPU-accelerated terminal (restty renderer, Rust PTY) and a sandboxed browser. Registers Terminal + Browser tabs in dsh-better-sidebar when present, with a standalone floating-panel fallback. Exposes a restty-native wire-protocol WebSocket at /powerdesk/ws/terminal and a browser embeddability probe at /powerdesk/api/browser.probe.",
+  "description": "A developer workbench for DSH: a GPU-accelerated terminal (restty renderer, Rust PTY) and a sandboxed browser, hosted in a self-contained right sidebar (panel + tab bar copied from dsh-better-sidebar's layout/wrapper, with powerdesk's own terminal + browser as the tabs). Exposes a restty-native wire-protocol WebSocket at /powerdesk/ws/terminal and a browser embeddability probe at /powerdesk/api/browser.probe.",
   "engines": {
     "dsh": ">=0.0.1"
   },

@@ -15,7 +15,7 @@ export interface ResttyConfig {
   /**
    * Terminal shell (absolute path or bare executable name). Empty = auto:
    * POSIX follows `$SHELL` then the account login shell; Windows follows
-   * `DSH_POWERDESK_SHELL`, then probes for `pwsh.exe`, then falls back to the
+   * `DSH_RESTTY_SHELL`, then probes for `pwsh.exe`, then falls back to the
    * inbox `powershell.exe` (5.1).
    */
   shell?: string
