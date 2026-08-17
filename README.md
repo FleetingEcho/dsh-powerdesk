@@ -59,29 +59,43 @@ Supported platforms for the prebuilt PTY binary:
 ## Install
 
 There are two ways to install. Pick **one** — do not enable both channels at
-once (they would double-mount the host half and render two sidebars).
+once (they would double-mount the host half and render two sidebars). No
+npm package is published yet, so both channels install straight from the
+GitHub repo.
 
-### Option A — official CLI + prebuilt binary (recommended)
+### Option A — from GitHub (recommended)
 
-One command installs the npm package, auto-mounts it (the
-`cordis.patch.yml` bundle-patch is added to the profile on next DSH start),
-and downloads the platform's prebuilt Rust PTY binary:
+`dsh plugin` forwards to pnpm *inside the profile directory*, so this fetches
+the repo as a git-hosted package (no local clone needed):
 
 ```bash
-# POSIX (Linux / macOS)
-bash scripts/install.sh
-# or pin a version + restart DSH afterward:
-bash scripts/install.sh 0.1.0 --profile web --restart
-
-# Windows (PowerShell)
-powershell -ExecutionPolicy Bypass -File scripts\install.ps1
+dsh plugin --profile web add "dsh-powerdesk@github:FleetingEcho/dsh-powerdesk"
 ```
 
-Under the hood this runs
-`dsh plugin --profile <name> add dsh-powerdesk@<version>` and then fetches the
-prebuilt `dsh_powerdesk_pty.node` into `prebuilt/<triple>/`.
+The package's `prepare` script (`tsdown`) builds the client/host JS on
+install. **First install on a profile also needs an `allowBuilds` entry** —
+pnpm 11 blocks lifecycle scripts (including `prepare`) for git-hosted
+packages by default:
 
-### Option B — from source (for development / private deployments)
+```yaml
+# ~/.dsh/profiles/web/pnpm-workspace.yaml
+allowBuilds:
+  dsh-powerdesk: true
+```
+
+without it, install fails with `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED` and
+`lib/` is never produced. This only needs to be added once per profile.
+
+There's no prebuilt Rust PTY binary distribution yet (no GitHub releases),
+so the terminal will show the repair banner until you build the native addon
+once inside the installed package:
+
+```bash
+cd ~/.dsh/profiles/web/node_modules/dsh-powerdesk
+pnpm build:rust       # needs the Rust toolchain (rustup); cargo build --release
+```
+
+### Option B — from source (for development)
 
 Clone the repo, build, then point DSH at the local checkout:
 
@@ -95,18 +109,13 @@ pnpm build:rust       # cargo build --release → prebuilt/<triple>/dsh_powerdes
 pnpm test             # vitest (optional sanity check)
 
 # Register the local checkout with your DSH profile.
-# NOTE: `dsh plugin` forwards to pnpm *inside the profile directory*
-# (~/.dsh/profiles/web), so `link:.` resolves to that directory and yields a
-# broken self-referential symlink (the plugin then mounts as a plain
-# dependency with no bundle row and will NOT load). Use an ABSOLUTE path to
-# your checkout — e.g. from the cloned dir:
+# NOTE: `link:.` resolves relative to the profile directory
+# (~/.dsh/profiles/web), so it yields a broken self-referential symlink (the
+# plugin then mounts as a plain dependency with no bundle row and will NOT
+# load). Use an ABSOLUTE path to your checkout — e.g. from the cloned dir:
 dsh plugin --profile web add "dsh-powerdesk@link:$PWD"
 #   or add a `link:<absolute path>` dependency in the profile and `pnpm install`.
 ```
-
-`pnpm build:rust` needs the Rust toolchain (`rustup`). If you'd rather not
-build the native addon locally, run `bash scripts/install.sh --repair` after
-the clone — it downloads the matching prebuilt binary for your platform.
 
 After either option: **hard-refresh the browser** (Cmd/Ctrl+Shift+R). Client
 half changes hot-reload without a DSH restart; host half changes (`src/*.ts`,
@@ -240,16 +249,16 @@ session). Clicking a card's body opens that surface in the workbench.
 
 ## Update
 
-### Option A (npm channel)
+### Option A (GitHub channel)
 
-Re-run the install command with the new version, then hard-refresh:
+Re-add the dependency to pick up the latest commit, then hard-refresh:
 
 ```bash
-bash scripts/install.sh 0.2.0 --profile web --restart
+dsh plugin --profile web add "dsh-powerdesk@github:FleetingEcho/dsh-powerdesk"
 ```
 
-This re-runs `dsh plugin --profile web add dsh-powerdesk@0.2.0` (the CLI
-updates the dependency) and re-downloads the matching prebuilt binary.
+This re-runs `prepare` (`tsdown`) against the new commit. If the Rust PTY
+layer changed, rebuild it too (see Install → Option A).
 
 ### Option B (source / git channel)
 
@@ -268,15 +277,12 @@ pnpm build:rust
 
 ## Uninstall
 
-### Option A (npm channel)
+### Option A (GitHub channel)
 
-Remove the package from the profile, then optionally delete the prebuilt
-binary:
+Remove the package from the profile:
 
 ```bash
 dsh plugin --profile web remove dsh-powerdesk
-# Optional: delete the downloaded native binary
-rm -rf ~/.dsh/profiles/web/node_modules/dsh-powerdesk/prebuilt
 # Hard-refresh the browser (or restart DSH) for the mount row to drop.
 ```
 
@@ -299,17 +305,20 @@ restart) clears the in-memory copy.
 ## Repair (terminal shows "Rust PTY loading failed")
 
 If the native PTY binary is missing, corrupt, or built for the wrong
-platform, the terminal shows a repair banner. Re-fetch or rebuild the
-binary without reinstalling the whole plugin:
+platform, the terminal shows a repair banner. Rebuild it in place without
+reinstalling the whole plugin:
 
 ```bash
-bash scripts/install.sh --repair            # re-downloads the matching binary
-# If no prebuilt exists for your platform, build from source:
-pnpm build:rust                              # needs the Rust toolchain
+# GitHub channel:
+cd ~/.dsh/profiles/web/node_modules/dsh-powerdesk
+# Source channel:
+cd /path/to/your/dsh-powerdesk/checkout
+
+pnpm build:rust                              # needs the Rust toolchain (rustup)
 ```
 
-Then hard-refresh the browser (and restart DSH if you rebuilt, since the
-host half re-reads the binary on startup).
+Then hard-refresh the browser and restart DSH, since the host half re-reads
+the binary on startup.
 
 ---
 
