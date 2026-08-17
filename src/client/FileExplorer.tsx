@@ -19,7 +19,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import clsx from 'clsx'
 import { Menu } from '@deepseek-ai/dsh-client-ui-primitives'
-import { ChevronDown, ChevronRight, Copy, File, Folder, FolderMinus, FolderPlus } from 'lucide-react'
+import { ChevronDown, ChevronRight, Copy, File, Folder, FolderMinus, FolderPlus, Search as SearchGlyph } from 'lucide-react'
 import { api, type FsEntry } from './api.ts'
 import {
   makeBookmarkId,
@@ -28,6 +28,7 @@ import {
   type ExplorerBookmark,
 } from './explorer-prefs.ts'
 import { FolderPicker } from './FolderPicker.tsx'
+import { SearchView } from './SearchView.tsx'
 import { t } from './locales.ts'
 import css from './sidebar.module.css'
 
@@ -37,6 +38,8 @@ export interface FileExplorerProps {
   expanded: string[]
   onToggleDir: (path: string) => void
   onOpenFile: (path: string) => void
+  /** Open a file and scroll/select `line` (search-mode result clicks). */
+  onOpenFileAtLine?: (path: string, line: number) => void
 }
 
 /** One loaded (or loading/errored) directory's children, keyed by abs path. */
@@ -232,11 +235,16 @@ function DirRow(props: TreeProps & { path: string; name: string; depth: number }
 }
 
 export function FileExplorer(props: FileExplorerProps): ReactNode {
-  const { cwd, expanded, onToggleDir, onOpenFile } = props
+  const { cwd, expanded, onToggleDir, onOpenFile, onOpenFileAtLine } = props
   const [prefs, setPrefs] = useState(() => readExplorerPrefs())
   const [menuOpen, setMenuOpen] = useState(false)
   const [picking, setPicking] = useState(false)
   const [dirs, setDirs] = useState<Map<string, DirState>>(new Map())
+  // Files/Search are two modes of this ONE tab (mirrors VSCode's Explorer /
+  // Search sidebar views) rather than a separate tab you'd have to split a
+  // pane open to reach — see SearchView.tsx for the search UI itself, reused
+  // here unwrapped from its own tab chrome.
+  const [mode, setMode] = useState<'files' | 'search'>('files')
 
   const active = prefs.bookmarks.find(b => b.id === prefs.activeId)
   const root = active?.path ?? cwd ?? '.'
@@ -298,6 +306,16 @@ export function FileExplorer(props: FileExplorerProps): ReactNode {
         />
         <button
           type="button"
+          className={clsx(css.explorerPill, mode === 'search' && css.explorerPillActive)}
+          title={t('searchTabTitle')}
+          aria-label={t('searchTabTitle')}
+          aria-pressed={mode === 'search'}
+          onClick={() => { setMode(m => m === 'search' ? 'files' : 'search') }}
+        >
+          <SearchGlyph size={13} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
           className={css.explorerPill}
           title={t('explorerAddFolder')}
           aria-label={t('explorerAddFolder')}
@@ -323,18 +341,22 @@ export function FileExplorer(props: FileExplorerProps): ReactNode {
         onSelect={addBookmark}
         onClose={() => { setPicking(false) }}
       />
-      <div className={css.explorerBody}>
-        <DirChildren
-          path={root}
-          depth={0}
-          root={root}
-          expanded={expanded}
-          dirs={dirs}
-          onToggleDir={onToggleDir}
-          onOpenFile={onOpenFile}
-          load={load}
-        />
-      </div>
+      {mode === 'search' ? (
+        <SearchView cwd={root} onOpenFileAtLine={onOpenFileAtLine ?? ((): void => {})} />
+      ) : (
+        <div className={css.explorerBody}>
+          <DirChildren
+            path={root}
+            depth={0}
+            root={root}
+            expanded={expanded}
+            dirs={dirs}
+            onToggleDir={onToggleDir}
+            onOpenFile={onOpenFile}
+            load={load}
+          />
+        </div>
+      )}
     </div>
   )
 }

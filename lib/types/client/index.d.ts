@@ -5,8 +5,6 @@ export declare const POWERDESK_BROWSER_TAB_ID = "dsh-powerdesk:browser";
 export declare const POWERDESK_EXPLORER_TAB_ID = "dsh-powerdesk:explorer";
 /** The tab id for the Notes tab (the SidebarTab.type value). */
 export declare const POWERDESK_NOTES_TAB_ID = "dsh-powerdesk:notes";
-/** The tab id for the Search tab (the SidebarTab.type value). */
-export declare const POWERDESK_SEARCH_TAB_ID = "dsh-powerdesk:search";
 /** Services required before mounting (provided by the DSH client runtime). */
 export declare const inject: string[];
 /**

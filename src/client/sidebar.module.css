@@ -26,17 +26,21 @@
    top-right while it is open, sitting flush in the 34px tab strip whose
    right end it really squeezes; floating above the host's own header
    (clear of its "Session log" control) or above the bottom panel's own tab
-   strip otherwise. `top` is computed in SidebarShell (not static here) —
-   a fixed pixel offset could land the cluster inside pane CONTENT instead
-   of a toolbar band depending on which panels are open and how tall the
-   bottom one is; see the shell's `clusterTop` comment. z-index 45: above
-   the panels (40) but below the app's overlay stack (menus/tooltips/modals
-   sit at 100+), so a cordis approval popup is never hidden behind the
-   workbench (issue #52). */
+   strip otherwise. `top` AND `right` are both computed in SidebarShell (not
+   static here): `top` because a fixed pixel offset could land the cluster
+   inside pane CONTENT instead of a toolbar band depending on which panels
+   are open and how tall the bottom one is (see the shell's `clusterTop`
+   comment); `right` because docked inside the open panel's own tab strip it
+   sits close to the edge, but floating over the host header while closed it
+   needs to sit further left to clear "Session log" (see `clusterRight`).
+   The values below are fallbacks only (pre-hydration / no-JS). z-index 45:
+   above the panels (40) but below the app's overlay stack (menus/tooltips/
+   modals sit at 100+), so a cordis approval popup is never hidden behind
+   the workbench (issue #52). */
 .toggleCluster {
   position: fixed;
   top: 3px;
-  right: 53px;
+  right: 10px;
   z-index: 45;
   display: flex;
   flex-direction: row;
@@ -45,9 +49,11 @@
 
 /* The tab strip of the OPEN right panel reserves the cluster's width at its
    right end, so the tabs and the + menu genuinely yield space to the cluster
-   (never hiding under it). */
+   (never hiding under it). Matches the cluster's OPEN-state `right: 10px`
+   (see `clusterRight` in SidebarShell) — the closed-state 53px doesn't apply
+   here since this rule only fires while the panel is open. */
 .panel:not(.panelHidden) .tabBar {
-  padding-right: 82px;
+  padding-right: 72px;
 }
 
 /* The closed-state affordance is the native rail icon control: a plain
@@ -951,6 +957,12 @@
 .explorerPill:disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+/* The Explorer header's Files/Search mode toggle, while search mode is active. */
+.explorerPillActive {
+  background: var(--dsw-alias-interactive-bg-active);
+  color: var(--dsw-alias-brand-primary);
 }
 
 .explorerCopied {

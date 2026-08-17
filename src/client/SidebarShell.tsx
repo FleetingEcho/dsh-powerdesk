@@ -131,6 +131,11 @@ export function SidebarShell(props: { ctx: Context; store: SidebarStore; service
     const bottomTopY = (typeof window !== 'undefined' ? window.innerHeight : Infinity) - state.bottomHeight
     return Math.max(DOCKED_TOP, Math.min(HOST_HEADER_CLEAR, bottomTopY - CLUSTER_ROW)) + titleBarStripPx
   })()
+  // Horizontal offset: docked inside the OPEN right panel's own tab strip it
+  // sits close to the edge (10px); floating over the host header while the
+  // panel is CLOSED it needs to sit further left (53px) to clear "Session
+  // log" in that same corner (see the .toggleCluster CSS comment).
+  const clusterRight = state === undefined || state.panelOpen ? 10 : 53
 
   // Push the host app's own content instead of floating the panels over it,
   // so the panels read as "docked" rather than overlaid. The two axes need
@@ -250,8 +255,9 @@ export function SidebarShell(props: { ctx: Context; store: SidebarStore; service
     // Per-tab one-line descriptions for the empty-state "new page" cards.
     // Keyed by the stable tab id literal each descriptor carries (terminal
     // = 'dsh-powerdesk:terminal', explorer = 'dsh-powerdesk:explorer',
-    // notes = 'dsh-powerdesk:notes', browser = 'dsh-powerdesk:browser',
-    // search = 'dsh-powerdesk:search').
+    // notes = 'dsh-powerdesk:notes', browser = 'dsh-powerdesk:browser').
+    // Search is a mode of the Explorer tab (its header's search toggle), not
+    // a separate registered tab type — see FileExplorer.tsx.
     // Unknown tabs (e.g. an extension tab) get no description — the card
     // just shows its label.
     const descriptions: Record<string, string> = {
@@ -259,7 +265,6 @@ export function SidebarShell(props: { ctx: Context; store: SidebarStore; service
       'dsh-powerdesk:explorer': t('cardExplorerDesc'),
       'dsh-powerdesk:notes': t('cardNotesDesc'),
       'dsh-powerdesk:browser': t('cardBrowserDesc'),
-      'dsh-powerdesk:search': t('cardSearchDesc'),
     }
     return service.getTabs()
       .filter(descriptor => descriptor.hidden !== true && service.isTabEnabled(descriptor.id))
@@ -286,7 +291,7 @@ export function SidebarShell(props: { ctx: Context; store: SidebarStore; service
           collapses the panel. Always pinned (the CSS reserves its space in
           the tab strip's right end), so the entry stays findable even when
           the panel is closed — the user's "no sidebar entry" complaint. */}
-      <div className={css.toggleCluster} style={{ top: clusterTop }}>
+      <div className={css.toggleCluster} style={{ top: clusterTop, right: clusterRight }}>
         <Tooltip label={bottomOpen ? t('collapseBottom') : t('expandBottom')} side="bottom" delayMs={500}>
           <button
             type="button"

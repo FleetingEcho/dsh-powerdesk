@@ -23,6 +23,8 @@ export interface FileExplorerProps {
     expanded: string[];
     onToggleDir: (path: string) => void;
     onOpenFile: (path: string) => void;
+    /** Open a file and scroll/select `line` (search-mode result clicks). */
+    onOpenFileAtLine?: (path: string, line: number) => void;
 }
 /** `path` relative to `root` (falls back to the absolute path when `path`
  *  isn't actually under `root` — should not happen, the tree only ever
