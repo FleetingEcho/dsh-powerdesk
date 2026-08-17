@@ -7,7 +7,9 @@
     "type": "git",
     "url": "https://github.com/FleetingEcho/dsh-powerdesk"
   },
-  "publishConfig": { "access": "public" },
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
   "exports": {
@@ -25,9 +27,13 @@
     },
     "./package.json": "./package.json"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "dsh": {
-    "bundle": { "patch": "./cordis.patch.yml" },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
     "client": {
       "inject": [
         "@deepseek-ai/dsh-client-runtime",
@@ -78,10 +84,26 @@
     "react-dom": "^18.2.0"
   },
   "peerDependenciesMeta": {
-    "cordis": { "optional": true }
+    "cordis": {
+      "optional": true
+    }
   },
   "dependencies": {
+    "@codemirror/lang-css": "^6.3.1",
+    "@codemirror/lang-html": "^6.4.9",
+    "@codemirror/lang-javascript": "^6.2.4",
+    "@codemirror/lang-json": "^6.0.2",
+    "@codemirror/lang-markdown": "^6.3.4",
+    "@codemirror/lang-python": "^6.2.1",
+    "@codemirror/lang-rust": "^6.0.2",
+    "@codemirror/lang-yaml": "^6.1.2",
+    "@codemirror/language": "^6.11.4",
+    "@codemirror/state": "^6.5.2",
+    "@codemirror/view": "^6.38.6",
+    "@lezer/highlight": "^1.2.3",
     "clsx": "^2.1.1",
+    "codemirror": "^6.0.2",
+    "lucide-react": "^1.31.0",
     "restty": "^0.2.6",
     "schemastery": "^3.18.0",
     "ws": "^8.18.0"

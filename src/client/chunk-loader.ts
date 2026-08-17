@@ -41,7 +41,7 @@
  * in-memory cache, so a hot-reloaded core bundle re-fetches and re-executes
  * the current chunk script on the next lazy open.
  */
-export type ChunkName = 'terminal' | 'browser'
+export type ChunkName = 'terminal' | 'browser' | 'editor'
 
 /** The module exports a chunk factory provides (namespace-ish record). */
 export type ChunkExports = Record<string, unknown>

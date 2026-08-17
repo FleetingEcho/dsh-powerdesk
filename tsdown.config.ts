@@ -128,7 +128,7 @@ function clientBundle(pluginId: string, entryFile: string): UserConfig {
       'import.meta.resolve': 'undefined',
     },
     inputOptions: {
-      resolve: { conditionNames: ['browser', 'import', 'require', 'default'] },
+      resolve: { conditionNames: ['browser', 'import', 'require', 'default'], mainFields: ['browser', 'module', 'main'] },
     },
     noExternal: (id: string) => (CLIENT_EXTERNALS.includes(id) ? undefined : true),
     plugins: [purityGatePlugin(), makeCssPlugin(pluginId)],
@@ -161,7 +161,7 @@ function chunkBundle(name: string): UserConfig {
       'import.meta.resolve': 'undefined',
     },
     inputOptions: {
-      resolve: { conditionNames: ['browser', 'import', 'require', 'default'] },
+      resolve: { conditionNames: ['browser', 'import', 'require', 'default'], mainFields: ['browser', 'module', 'main'] },
     },
     noExternal: (id: string) => (CLIENT_EXTERNALS.includes(id) ? undefined : true),
     plugins: [purityGatePlugin(), makeCssPlugin('dsh-powerdesk')],
@@ -242,7 +242,7 @@ function makeCssPlugin(pluginId: string): BuildPlugin {
 }
 
 /** The lazy chunk names (keep in sync with src/bundle-route.ts CHUNK_NAMES). */
-const CHUNKS = ['terminal', 'browser']
+const CHUNKS = ['terminal', 'browser', 'editor']
 
 export default [
   {

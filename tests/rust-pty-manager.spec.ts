@@ -9,17 +9,20 @@ interface FakeRaw extends RawRustPty {
 }
 
 function fakeRaw(): FakeRaw {
-  let dataCb: ((s: string) => void) | null = null
-  let exitCb: ((e: RustPtyExitEvent) => void) | null = null
+  let dataCb: ((err: Error | null, s: string) => void) | null = null
+  let exitCb: ((err: Error | null, e: RustPtyExitEvent) => void) | null = null
   return {
-    on_data: (cb: (s: string) => void) => { dataCb = cb },
-    on_exit: (cb: (e: RustPtyExitEvent) => void) => { exitCb = cb },
+    onData: (cb: (err: Error | null, s: string) => void) => { dataCb = cb },
+    onExit: (cb: (err: Error | null, e: RustPtyExitEvent) => void) => { exitCb = cb },
     write: vi.fn(),
     resize: vi.fn(),
     kill: vi.fn(),
     pid: 1,
-    emitData: (s: string) => { dataCb?.(s) },
-    emitExit: (e: RustPtyExitEvent) => { exitCb?.(e) },
+    // Mirrors napi-rs's CalleeHandled ThreadsafeFunction calling convention:
+    // the callback receives `(err, value)`, err always null on the success
+    // path these tests exercise.
+    emitData: (s: string) => { dataCb?.(null, s) },
+    emitExit: (e: RustPtyExitEvent) => { exitCb?.(null, e) },
   } as unknown as FakeRaw
 }
 

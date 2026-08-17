@@ -31,6 +31,7 @@ import { defaultShell } from './shell.ts'
 import { RustPtyManager } from './rust-pty-manager.ts'
 import { handleClientMessage } from './pty-wire.ts'
 import { extractFrameAncestors } from './browser-probe.ts'
+import { fsCreate, fsDelete, fsHome, fsList, fsListMarkdownTree, fsMkdir, fsRead, fsRename, fsWrite } from './fs-api.ts'
 import {
   PTY_DEPS_MISSING,
   depsStatus,
@@ -151,6 +152,29 @@ function buildApi(ctx: Context, ptyManager: RustPtyManager | null): Record<strin
         clearTimeout(timer)
       }
     },
+    // File explorer / editor: list a directory, read/write one file. No
+    // extra path sandboxing beyond resolve() — the terminal already gives
+    // the user unrestricted local shell access, so restricting this API
+    // more tightly would not add any real security.
+    'fs.list': (payload) => fsList(requireString(payload, 'path')),
+    'fs.read': (payload) => fsRead(requireString(payload, 'path')),
+    'fs.write': (payload) => {
+      const path = requireString(payload, 'path')
+      const content = requireString(payload, 'content')
+      return fsWrite(path, content)
+    },
+    // Notes tab: create/rename/delete + the recursive markdown tree.
+    'fs.create': (payload) => fsCreate(requireString(payload, 'path')),
+    'fs.mkdir': (payload) => fsMkdir(requireString(payload, 'path')),
+    'fs.rename': (payload) => {
+      const from = requireString(payload, 'from')
+      const to = requireString(payload, 'to')
+      return fsRename(from, to)
+    },
+    'fs.delete': (payload) => fsDelete(requireString(payload, 'path')),
+    'fs.listMarkdownTree': (payload) => fsListMarkdownTree(requireString(payload, 'path')),
+    // The folder-picker modal's starting point.
+    'fs.home': () => fsHome(),
   }
 }
 

@@ -83,11 +83,15 @@
   /* Full height: the bottom panel squeezes only the center column, so the
      right panel never gives up any vertical position. */
   bottom: 0;
-  /* z-index 40: above the app's in-flow content, below the app's overlay
-     stack (100+), so menus/tooltips/modals always win over the panels
-     (issue #52). The toggle cluster (45) sits above it; the corner handle
-     is a child and stacks within the panel. */
-  z-index: 40;
+  /* z-index 41: above the app's in-flow content AND above the bottom panel
+     (40) — the bottom panel now spans the FULL window width (see its own
+     comment), so when both are open the right panel must stack visually on
+     top of the bottom panel's right portion instead of the two fighting
+     for the same pixels. Below the app's overlay stack (100+), so
+     menus/tooltips/modals always win over the panels (issue #52). The
+     toggle cluster (45) sits above it; the corner handle is a child and
+     stacks within the panel. */
+  z-index: 41;
   display: flex;
   flex-direction: column;
   /* The generic card surface (see the root contract above). Never
@@ -144,15 +148,19 @@
 
 /* ── Bottom panel ──────────────────────────────────────────────────────── */
 
-/* The bottom panel: an independent workbench at the bottom of the CENTER
-   column only (the Sidebar shell writes left/right inline: from the app's
-   own left sidebar to the right panel's left edge) — the sidebars never
-   give up any position. Same surface as the right panel, with a top
-   hairline instead of the left one. z-index 40 mirrors the right panel
-   (issue #52: below the app's overlay stack so popups win over the
-   workbench). */
+/* The bottom panel: spans from the host's own CENTER COLUMN's left edge
+   (see the Sidebar shell's left-inset effect — never covering the host's
+   own left nav) all the way to the viewport's right edge — INCLUDING under
+   the right panel when both are open (unlike dsh-better-sidebar's
+   reference, which stops at the right panel's left edge: with a wide right
+   panel that squeeze left the bottom panel a barely-usable sliver). The
+   right panel's opaque background + higher z-index (41 vs this panel's 40)
+   makes it stack visually on top instead of the two panels fighting for
+   space. Below the app's overlay stack (100+), so popups win over the
+   workbench (issue #52). */
 .bottomPanel {
   position: fixed;
+  right: 0;
   bottom: 0;
   z-index: 40;
   display: flex;
@@ -666,6 +674,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 2px 6px 8px;
 }
 
@@ -678,6 +687,7 @@
   align-items: center;
   gap: 6px;
   width: 100%;
+  min-width: 0;
   height: 34px;
   padding: 0 8px;
   border: none;
@@ -687,6 +697,7 @@
   text-align: left;
   cursor: pointer;
   white-space: nowrap;
+  overflow: hidden;
   border-radius: 8px;
   animation: dsh-row-in 150ms var(--ds-ease-in-out);
 }
@@ -697,6 +708,12 @@
 
 .explorerDir {
   font: var(--dsw-font-s-strong-14);
+}
+
+/* The Notes tree's selected file row (persistent highlight, unlike the
+   transient :hover fill every explorer row already gets). */
+.explorerRowActive {
+  background: var(--dsw-alias-interactive-bg-hover);
 }
 
 .explorerHidden {
@@ -716,6 +733,8 @@
 }
 
 .explorerName {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -745,6 +764,39 @@
 .explorerRow:hover .explorerRef,
 .explorerRow:focus-within .explorerRef {
   display: inline-flex;
+}
+
+/* Same pill look as .explorerRef, but ALWAYS visible — for standalone action
+   buttons that don't live inside a hovered/focused .explorerRow (header
+   "Add folder" / "Remove folder", the Notes bind/new-note/new-folder
+   buttons, the folder-picker's Up/Cancel/Select). .explorerRef's `display:
+   none` base rule only flips to visible via a `.explorerRow:hover`/
+   `:focus-within` ANCESTOR selector, so reusing it outside a row silently
+   makes the button unclickable-by-mouse (a script `.click()` still "works"
+   since it doesn't require visibility, which is how this went unnoticed —
+   see the +1 finding when a real user reported "the button isn't there"). */
+.explorerPill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-tertiary);
+  font: var(--dsw-font-xxxs-strong-11);
+  cursor: pointer;
+}
+
+.explorerPill:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.explorerPill:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .explorerCopied {
@@ -1924,4 +1976,151 @@
     min-width: 48px;
     max-width: 128px;
   }
+}
+
+/* ── Settings Side card (the "Powerdesk" page in the DSH Settings shell) ── */
+
+.settingsIntro {
+  margin: 0 0 12px;
+  font: var(--dsw-font-s-14);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.settingsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.settingsCard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-layer-1);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+}
+
+.settingsCard:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.settingsCardIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-primary);
+}
+
+.settingsCardTitle {
+  font: var(--dsw-font-s-strong-14);
+  color: var(--dsw-alias-label-primary);
+}
+
+.settingsCardSubtitle {
+  font: var(--dsw-font-xxs-12);
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.settingsCardToggle {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  cursor: pointer;
+}
+
+.settingsCardToggleOn {
+  background: var(--dsw-alias-label-primary);
+  border-color: transparent;
+  color: var(--dsw-alias-bg-base);
+}
+
+.settingsHint {
+  margin: 12px 0 0;
+  font: var(--dsw-font-xxs-12);
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.settingsMissing {
+  margin: 0;
+  padding: 12px;
+  border-radius: 10px;
+  font: var(--dsw-font-s-14);
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+/* ── Notes (tree + inline editor in ONE tab, unlike Explorer/Editor) ────── */
+
+.notesRoot {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.notesTree {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.notesEditor {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.notesBindPrompt {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+}
+
+/* ── Folder picker modal (Explorer "Add folder" / Notes "Bind folder") ──── */
+
+.folderPickerPath {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+}
+
+.folderPickerList {
+  height: 320px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.folderPickerFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }

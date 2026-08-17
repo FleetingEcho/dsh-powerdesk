@@ -89,7 +89,7 @@ describe('bundle-route handler', () => {
     expect(out.status).toBe(404)
   })
 
-  it('CHUNK_NAMES is exactly [terminal, browser]', () => {
-    expect([...CHUNK_NAMES]).toEqual(['terminal', 'browser'])
+  it('CHUNK_NAMES is exactly [terminal, browser, editor]', () => {
+    expect([...CHUNK_NAMES]).toEqual(['terminal', 'browser', 'editor'])
   })
 })

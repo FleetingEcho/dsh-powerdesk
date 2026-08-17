@@ -660,6 +660,14 @@ export function resizeSplitIn(state: SidebarState, splitId: string, index: numbe
   return { ...state, [key]: resizeSplit(state[key], splitId, index, delta) }
 }
 
+/** The Explorer tab's id (also its type — `single: true` means one instance).
+ *  Shared between index.tsx (registers the descriptor) and SplitPane.tsx
+ *  (opening a file splits the explorer's pane instead of stacking the file
+ *  on top of it) — defined here, the lowest shared module, to avoid a
+ *  index.tsx <-> SplitPane.tsx import cycle (index.tsx -> SidebarShell.tsx
+ *  -> SplitPane.tsx). */
+export const EXPLORER_TAB_ID = 'dsh-powerdesk:explorer'
+
 /** Prefix marking a tab id as an agent-owned terminal (suffix is the uuid). */
 export const AGENT_TAB_PREFIX = 'agent:'
 

@@ -1,15 +1,11 @@
 /**
- * The "Powerdesk" Side card in the DSH Settings shell — a discoverable entry
- * for the terminal and the browser surfaces.
- *
- * dsh-powerdesk surfaces as tabs inside its OWN self-contained sidebar panel
- * (layout/chrome copied from dsh-better-sidebar, but a separate service —
- * see `powerdeskSidebar` in context-types.ts). The sidebar's own open/toggle
- * cluster lives at the top-right corner and is not obvious, so this settings
- * section gives users a single, findable place to OPEN either surface: the
- * buttons call `sidebar.openTab({ type, ... })`, which opens the sidebar
- * panel (if collapsed) and focuses the matching tab, then the section closes
- * the settings panel.
+ * The "Powerdesk" Side card in the DSH Settings shell: one card per
+ * registered tab type (Terminal / Browser / Explorer / Editor), matching
+ * dsh-better-sidebar's own settings page style — icon, title, the raw type
+ * id as a subtitle, and a checkmark toggle to enable/disable it (an absent
+ * key means enabled; toggling off hides the type from the + menu and makes
+ * `openTab` a no-op for it — see service.ts's `isTabEnabled`/`setTabEnabled`).
+ * Clicking the card body (not the toggle) opens that surface in the sidebar.
  *
  * The section is registered through `ctx.slots.inject('settings.section', …)`
  * in the client `apply()` (see index.tsx). The shell owns modal visibility and
@@ -17,11 +13,11 @@
  * `sidebar` face (the optional PowerdeskSidebarService, probed via
  * `ctx.get('powerdeskSidebar')`).
  */
-import { useState, type ReactNode } from 'react'
-import type { PowerdeskSidebarService } from './service.ts'
-import { POWERDESK_TAB_ID } from './prefs.ts'
-import { POWERDESK_BROWSER_TAB_ID } from './index.tsx'
+import { useEffect, useState, type ReactNode } from 'react'
+import clsx from 'clsx'
+import type { PowerdeskSidebarService, TabDescriptor } from './service.ts'
 import { t } from './locales.ts'
+import css from './sidebar.module.css'
 
 /** The shell-supplied owner props (SettingsSectionOwnerProps: `close`). */
 export interface SettingsSectionOwnerProps {
@@ -35,6 +31,22 @@ export interface SettingsSectionInjected {
 
 /** Full section props: the shell owner share + the injected face. */
 export type SettingsSectionProps = SettingsSectionOwnerProps & SettingsSectionInjected
+
+/** A small checkmark glyph for the enabled-toggle badge. */
+function IconCheck({ size }: { size: number }): ReactNode {
+  return (
+    <svg width={size} height={size} viewBox="0 0 12 12" fill="none" aria-hidden="true">
+      <path d="M2.5 6.25 5 8.75 9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+/** Strip the `dsh-powerdesk:` namespace prefix for a short subtitle
+ *  (`dsh-powerdesk:explorer` -> `explorer`; `editor` stays `editor`). */
+function shortId(id: string): string {
+  const idx = id.indexOf(':')
+  return idx >= 0 ? id.slice(idx + 1) : id
+}
 
 /**
  * Open one powerdesk surface in the sidebar, then close the settings panel.
@@ -52,6 +64,40 @@ function openSurface(sidebar: PowerdeskSidebarService, type: string, close: () =
   }
 }
 
+/** One tab-type card: icon, title, subtitle id, and the enable toggle. */
+function TabCard(props: {
+  descriptor: TabDescriptor
+  sidebar: PowerdeskSidebarService
+  close: () => void
+  setHint: (s: string) => void
+}): ReactNode {
+  const { descriptor, sidebar, close, setHint } = props
+  const enabled = sidebar.isTabEnabled(descriptor.id)
+  const icon = typeof descriptor.icon === 'function' ? descriptor.icon(20) : descriptor.icon
+  const title = typeof descriptor.title === 'function' ? descriptor.title() : descriptor.title
+  return (
+    <div
+      className={css.settingsCard}
+      onClick={() => { openSurface(sidebar, descriptor.id, close, setHint) }}
+    >
+      <span className={css.settingsCardIcon}>{icon}</span>
+      <span className={css.settingsCardTitle}>{title}</span>
+      <span className={css.settingsCardSubtitle}>{shortId(descriptor.id)}</span>
+      <button
+        type="button"
+        className={clsx(css.settingsCardToggle, enabled && css.settingsCardToggleOn)}
+        aria-label={enabled ? t('settingsDisableTab') : t('settingsEnableTab')}
+        onClick={(event) => {
+          event.stopPropagation()
+          sidebar.setTabEnabled(descriptor.id, !enabled)
+        }}
+      >
+        <IconCheck size={12} />
+      </button>
+    </div>
+  )
+}
+
 /**
  * Render the Powerdesk Side card.
  * @param props - the shell owner share (`close`) + injected `sidebar` face.
@@ -59,46 +105,25 @@ function openSurface(sidebar: PowerdeskSidebarService, type: string, close: () =
  */
 export function SettingsSection({ close, sidebar }: SettingsSectionProps): ReactNode {
   const [hint, setHint] = useState<string | null>(null)
+  // Re-render on tab (de)registration or an enable-toggle (both call
+  // service.subscribe's notify()) so the grid and the toggle states stay live.
+  const [, forceUpdate] = useState(0)
+  useEffect(() => sidebar?.subscribe(() => { forceUpdate(n => n + 1) }), [sidebar])
+
   const available = sidebar !== undefined && typeof sidebar.openTab === 'function'
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 14, lineHeight: 1.5 }}>
-      <p style={{ margin: 0, color: 'var(--dsh-text-2, inherit)' }}>{t('settingsIntro')}</p>
+    <div>
+      <p className={css.settingsIntro}>{t('settingsIntro')}</p>
       {available ? (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            onClick={() => { openSurface(sidebar!, POWERDESK_TAB_ID, close, setHint) }}
-            style={buttonStyle}
-          >
-            {t('settingsOpenTerminal')}
-          </button>
-          <button
-            type="button"
-            onClick={() => { openSurface(sidebar!, POWERDESK_BROWSER_TAB_ID, close, setHint) }}
-            style={buttonStyle}
-          >
-            {t('settingsOpenBrowser')}
-          </button>
+        <div className={css.settingsGrid}>
+          {sidebar.getTabs().map(descriptor => (
+            <TabCard key={descriptor.id} descriptor={descriptor} sidebar={sidebar} close={close} setHint={setHint} />
+          ))}
         </div>
       ) : (
-        <p style={{ margin: 0, padding: 10, borderRadius: 8, color: 'var(--dsh-text-2, inherit)', background: 'var(--dsh-layer-3, rgba(127,127,127,0.08))' }}>
-          {t('settingsSidebarMissing')}
-        </p>
+        <p className={css.settingsMissing}>{t('settingsSidebarMissing')}</p>
       )}
-      {hint !== null && (
-        <p style={{ margin: 0, color: 'var(--dsh-text-2, inherit)' }}>{hint}</p>
-      )}
+      {hint !== null && <p className={css.settingsHint}>{hint}</p>}
     </div>
   )
-}
-
-/** Shared primary-button style (inline so the section needs no CSS module). */
-const buttonStyle: React.CSSProperties = {
-  padding: '6px 14px',
-  borderRadius: 8,
-  border: '1px solid var(--dsh-border, rgba(127,127,127,0.3))',
-  background: 'var(--dsh-brand, #2563eb)',
-  color: 'var(--dsh-on-brand, #fff)',
-  cursor: 'pointer',
-  fontSize: 14,
 }

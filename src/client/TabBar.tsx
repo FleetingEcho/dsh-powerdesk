@@ -178,8 +178,13 @@ export function TabBar(props: {
         {/*
           The + sits immediately after the rightmost tab (sticky at the
           right edge of the scrollport when the tabs overflow, so it stays
-          reachable no matter how many tabs are open).
+          reachable no matter how many tabs are open). Hidden when there is
+          nothing to offer (empty newTabOptions) — SplitPane.tsx passes an
+          empty array for a pane that holds only file-open tabs (editor),
+          since those only ever come from clicking a file in Explorer, never
+          from a "new tab" menu.
         */}
+        {newTabOptions.length > 0 && (
         <Menu
           open={menuOpen}
           onClose={() => { setMenuOpen(false) }}
@@ -207,6 +212,7 @@ export function TabBar(props: {
             </button>
           )}
         />
+        )}
       </div>
     </div>
   )

@@ -1,92 +1,43 @@
 /**
- * The powerdesk sidebar shell — the LAYOUT + WRAPPER only, copied from
- * dsh-better-sidebar's `Sidebar` (the panel/toggle/resize chrome) and
- * `split-pane` (a single-pane leaf), stripped of every feature the powerdesk
- * plugin does not ship: the bottom panel, multi-pane splits, drag-to-edge,
- * the explorer / git / subagent / jobs / editor / diff views, the
- * agent-terminals WebSocket, subagent/job auto-activation, and the cwd /
- * session-list wiring those views need.
+ * The powerdesk sidebar shell — the LAYOUT + WRAPPER, copied from
+ * dsh-better-sidebar's `Sidebar` (the panel/toggle/resize chrome), stripped
+ * of every feature the powerdesk plugin does not ship: the bottom panel, the
+ * explorer / git / subagent / jobs / editor / diff views, the agent-terminals
+ * WebSocket, subagent/job auto-activation, and the cwd / session-list wiring
+ * those views need.
  *
  * What remains is the discoverable entry the user asked for: a collapsible
- * right panel (width dragged on its left edge, persisted) with a tab strip
- * (the + menu offers the registered tab types) and a content area that
- * keeps every open tab MOUNTED (inactive ones hidden) so switching never
+ * right panel (width dragged on its left edge, persisted) with a workbench
+ * that keeps every open tab MOUNTED (inactive ones hidden) so switching never
  * tears down a terminal's connection/scrollback. The tab registry contract
  * (`PowerdeskSidebarService`) is unchanged, so powerdesk's existing
  * terminal/browser tab descriptors register through the same path.
  *
- * Single pane by design: powerdesk ships exactly two surfaces (terminal +
- * browser). The split-tree engine from `state.ts` is still linked (the
- * service's `openTab` reads `bottomSplits`/`bottomOpen` as inert fields),
- * but this shell renders only the root leaf of `state.splits` — splits are
- * never created because the drag-to-edge gesture that mints them lives in
- * `split-pane.tsx`, which this shell does not use.
+ * The panel DOCKS instead of floating over the app: it still renders via
+ * `position: fixed` (a body-level portal — see mountSidebarShell in
+ * index.tsx), but while open it reserves its width as a right margin on the
+ * host SPA's `#root`, so the host's own layout reflows to make room instead
+ * of the panel overlaying the host's content.
+ *
+ * The workbench itself (recursive split tree, drag-to-edge splitting, resize
+ * dividers) lives in `SplitPane.tsx`, reusing the split-tree engine already
+ * in `state.ts` (`splitPane` / `moveTabToEdge` / `resizeSplitIn`, copied
+ * whole from dsh-better-sidebar) — this shell owns only the outer panel
+ * chrome (toggle, width drag, docking) and renders `state.splits` through it.
  */
-import { createElement, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useSyncExternalStore } from 'react'
 import clsx from 'clsx'
-import { IconCloseFill14, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { Context } from '../context-types.ts'
-import {
-  PANEL_MAX,
-  PANEL_MIN,
-  allLeaves,
-  type SidebarState,
-  type SidebarStore,
-  type SidebarTab,
-} from './state.ts'
-import type { PowerdeskSidebarService, TabComponentProps, TabDescriptor } from './service.ts'
-import { togglePanel, setWidth, closeTab, activateTab } from './state.ts'
-import { TabBar, type NewTabOption, type TabDragPayload } from './TabBar.tsx'
-import { IconPanelRightOutline16 } from './icons.tsx'
-import { RenderBoundary } from './RenderBoundary.tsx'
+import type { SidebarStore } from './state.ts'
+import type { PowerdeskSidebarService } from './service.ts'
+import { togglePanel, setWidth, toggleBottomPanel, setBottomHeight } from './state.ts'
+import type { NewTabOption } from './TabBar.tsx'
+import { SplitTree } from './SplitPane.tsx'
+import { IconPanelRightOutline16, IconPanelBottomOutline16 } from './icons.tsx'
 import { t } from './locales.ts'
 import css from './sidebar.module.css'
-
-/** Clamp a dragged width to the panel's min/max (mirrors the reference shell). */
-function clampWidth(width: number): number {
-  return Math.max(PANEL_MIN, Math.min(PANEL_MAX, width))
-}
-
-/** The single root pane id — read from the root leaf at render time (the
- *  store mints a unique `uid('pane')` id, so a hardcoded constant would miss
- *  and closeTab/activateTab would no-op). */
-function rootPaneIdOf(state: SidebarState): string {
-  const root = state.splits.kind === 'leaf' ? state.splits : state.splits.children[0]
-  return root?.id ?? 'root'
-}
-
-/**
- * Render one tab's content via its registered descriptor. Every open tab
- * stays mounted (inactive ones hidden by the parent) so a terminal keeps its
- * pty connection and scrollback across tab switches; the unmount happens
- * only when a tab is truly closed. `visible` forwards the panel's open +
- * active state so a live view can pause work it cannot show.
- */
-function TabContent(props: {
-  tab: SidebarTab
-  descriptor: TabDescriptor
-  ctx: Context
-  store: SidebarStore
-  cwd: string | undefined
-  visible: boolean
-}): ReactNode {
-  const { tab, descriptor, ctx, store, cwd, visible } = props
-  return (
-    <RenderBoundary className={css.tabBoundaryError}>
-      {createElement(descriptor.component, {
-        ctx,
-        store,
-        // Forward the session's cwd so the terminal's reconnect effect
-        // (restty) re-runs when the conversation's working dir changes; the
-        // reference shell threads the same `summaryCwd` here.
-        scope: { sessionId: store.getSnapshot().sessionId, ...(cwd !== undefined ? { cwd } : {}) },
-        tab,
-        visible,
-      } as TabComponentProps)}
-    </RenderBoundary>
-  )
-}
 
 /** The powerdesk sidebar shell. */
 export function SidebarShell(props: { ctx: Context; store: SidebarStore; service: PowerdeskSidebarService }): ReactNode {
@@ -133,27 +84,105 @@ export function SidebarShell(props: { ctx: Context; store: SidebarStore; service
     return () => { document.body.removeAttribute('data-dsh-sidebar-collapsed') }
   }, [collapsed])
 
-  // The single pane: the first leaf of state.splits. The shell never splits,
-  // so the root is always a leaf; `allLeaves` drills to the first leaf if the
-  // tree were somehow a split (defensive — should not happen without the
-  // drag gesture). Guarded: state is undefined before a session is active.
-  const rootLeaf = state === undefined ? undefined : allLeaves(state.splits)[0]
-  const paneTabs: SidebarTab[] = rootLeaf?.tabs ?? []
-  const activeTabId = rootLeaf?.active ?? paneTabs[paneTabs.length - 1]?.id ?? null
-  const activeTab = paneTabs.find(tab => tab.id === activeTabId) ?? null
-  const rootPaneId = state === undefined ? 'root' : rootPaneIdOf(state)
+  // The width drag: pointer-capture on the left edge, translating the cursor
+  // delta into a width change (drag right-to-left widens, matching the
+  // reference shell's `startX - event.clientX`). Declared here (ahead of the
+  // push effect below, which reads `draggingWidth`) rather than down by the
+  // JSX that uses the pointer handlers.
+  const widthDrag = useRef({ startX: 0, startWidth: 0 })
+  const [draggingWidth, setDraggingWidth] = useState(false)
+
+  // The bottom panel's height drag: pointer-capture on the top edge,
+  // mirroring the width drag (drag up increases height, so `startY - clientY`).
+  const heightDrag = useRef({ startY: 0, startHeight: 0 })
+  const [draggingHeight, setDraggingHeight] = useState(false)
+  const bottomOpen = state?.bottomOpen === true
+
+  // Push the host app's own content instead of floating the panels over it:
+  // reserve the right panel's width as a right margin and the bottom
+  // panel's height as a bottom margin on the host SPA's bootstrap mount
+  // point. Both panels still render via `position: fixed` (a body-level
+  // portal — see mountSidebarShell), so these margins are what make them
+  // read as "docked" rather than overlaid: the host's own layout (a CSS
+  // grid whose center column is `minmax(0, 1fr)`) reflows to fill whatever
+  // space `#root` has left. `#root` is the SPA's bootstrap convention,
+  // independent of the host's own (hashed) CSS-module classes — deliberately
+  // NOT reaching into those for this push, which could change on any host
+  // rebuild. No transition while dragging (matches `.panel[data-dragging]`
+  // / `.bottomPanel[data-dragging]`), so the push tracks the cursor exactly.
+  useEffect(() => {
+    const hostRoot = document.getElementById('root')
+    if (hostRoot === null) return
+    hostRoot.style.transition = (draggingWidth || draggingHeight)
+      ? 'none'
+      : 'margin-right var(--ds-transition-duration-slow) var(--ds-ease-in-out), margin-bottom var(--ds-transition-duration-slow) var(--ds-ease-in-out)'
+    hostRoot.style.marginRight = collapsed ? '0px' : `${String(state?.width ?? 0)}px`
+    hostRoot.style.marginBottom = bottomOpen ? `${String(state?.bottomHeight ?? 0)}px` : '0px'
+    return () => {
+      hostRoot.style.marginRight = ''
+      hostRoot.style.marginBottom = ''
+      hostRoot.style.transition = ''
+    }
+  }, [collapsed, state?.width, bottomOpen, state?.bottomHeight, draggingWidth, draggingHeight])
+
+  // The bottom panel's LEFT edge spans from the host's own CENTER COLUMN's
+  // left edge (never covering the host's own left nav); its right edge is a
+  // plain CSS `right: 0` now (full window width, including under the right
+  // panel — see sidebar.module.css). Measured at runtime via a SUBSTRING
+  // class match ("centerCol") rather than the host's full hashed class
+  // name, so it survives a host rebuild changing the hash prefix; falls
+  // back to the viewport's left edge (0) if the host's DOM shape ever
+  // changes enough to lose the match — the panel still works, just may
+  // shadow the host's left nav in that fallback case.
+  //
+  // "Auto-update" means more than a window resize: the host's own left nav
+  // can collapse/expand (or its width can otherwise change) without ever
+  // firing a `resize` event, since the WINDOW doesn't change size — only the
+  // host's internal layout does. A plain resize listener misses that class
+  // of change entirely. A ResizeObserver on `document.body` catches most
+  // layout-affecting changes as a broad fallback, but the precise fix is to
+  // observe the elements that actually DETERMINE the inset: the center
+  // column itself and whatever precedes it in the host's layout (its own
+  // width change is exactly what shifts the center column's left edge) —
+  // so re-observed on every apply() in case the host's DOM was replaced
+  // (a re-render can swap which element `[class*="centerCol"]` resolves to).
+  const bottomPanelRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const observer = new ResizeObserver(apply)
+    function apply(): void {
+      const panel = bottomPanelRef.current
+      if (panel === null) return
+      const centerCol = document.querySelector('[class*="centerCol"]')
+      const left = centerCol !== null ? centerCol.getBoundingClientRect().left : 0
+      panel.style.left = `${String(Math.max(0, left))}px`
+      observer.disconnect()
+      observer.observe(document.body)
+      if (centerCol !== null) observer.observe(centerCol)
+      if (centerCol?.previousElementSibling !== null && centerCol?.previousElementSibling !== undefined) {
+        observer.observe(centerCol.previousElementSibling)
+      }
+    }
+    apply()
+    window.addEventListener('resize', apply)
+    return () => {
+      window.removeEventListener('resize', apply)
+      observer.disconnect()
+    }
+  }, [collapsed, bottomOpen, state?.width])
 
   // The + menu: one option per registered (enabled) tab descriptor, in
   // `order` ascending. The descriptor's `available` gates the disabled state
   // (e.g. a terminal at capacity); `title` may be a function (i18n). Only
   // built when a session is active (the panel does not render otherwise).
+  // Threaded into every leaf of the split tree (each pane's + menu and its
+  // empty-state cards use the same options).
   const newTabOptions: NewTabOption[] = useMemo(() => {
     if (state === undefined) return []
     // state is defined iff a session is active (the store sets state=undefined
     // when no session is selected), so sessionId is non-undefined here.
     const scope = { sessionId: snapshot.sessionId! }
     return service.getTabs()
-      .filter(descriptor => service.isTabEnabled(descriptor.id))
+      .filter(descriptor => descriptor.hidden !== true && service.isTabEnabled(descriptor.id))
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
       .map(descriptor => ({
         id: descriptor.id,
@@ -163,24 +192,12 @@ export function SidebarShell(props: { ctx: Context; store: SidebarStore; service
       }))
   }, [service, state, ctx, snapshot.sessionId])
 
+  // Opens in the active pane (state.activePane, tracked by `activateTab` —
+  // see SplitPane.tsx); falls back to the tree's first leaf when nothing has
+  // been activated yet.
   const onNewTab = useCallback((typeId: string): void => {
     service.openTab({ type: typeId })
   }, [service])
-
-  // The width drag: pointer-capture on the left edge, translating the cursor
-  // delta into a width change (drag right-to-left widens, matching the
-  // reference shell's `startX - event.clientX`).
-  const widthDrag = useRef({ startX: 0, startWidth: 0 })
-  const [draggingWidth, setDraggingWidth] = useState(false)
-
-  // The descriptor lookup for rendering a tab's content + its + menu icon.
-  const descriptorOf = useCallback((tab: SidebarTab): TabDescriptor | undefined => {
-    return service.getTab(tab.type)
-  }, [service])
-  const tabIconOf = useCallback((tab: SidebarTab): ReactNode => {
-    const icon = descriptorOf(tab)?.icon
-    return typeof icon === 'function' ? icon(16) : (icon ?? null)
-  }, [descriptorOf])
 
   return (
     <>
@@ -189,6 +206,16 @@ export function SidebarShell(props: { ctx: Context; store: SidebarStore; service
           the tab strip's right end), so the entry stays findable even when
           the panel is closed — the user's "no sidebar entry" complaint. */}
       <div className={css.toggleCluster}>
+        <Tooltip label={bottomOpen ? t('collapseBottom') : t('expandBottom')} side="bottom" delayMs={500}>
+          <button
+            type="button"
+            className={css.toggleButton}
+            aria-label={bottomOpen ? t('collapseBottom') : t('expandBottom')}
+            onClick={() => { store.reduce(toggleBottomPanel) }}
+          >
+            <IconPanelBottomOutline16 />
+          </button>
+        </Tooltip>
         <Tooltip label={state === undefined || state.panelOpen ? t('collapse') : t('expand')} side="bottom" delayMs={500}>
           <button
             type="button"
@@ -222,74 +249,93 @@ export function SidebarShell(props: { ctx: Context; store: SidebarStore; service
           onPointerMove={(event) => {
             if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
             const { startX, startWidth } = widthDrag.current
-            const width = clampWidth(startWidth + (startX - event.clientX))
-            store.reduce(s => setWidth(s, width))
+            // setWidth clamps both bounds itself (PANEL_MIN .. window.innerWidth) —
+            // no separate cap here, so a multi-pane workbench can use most of
+            // the window instead of being stuck at the old single-pane
+            // terminal/browser sidebar's 640px ceiling.
+            store.reduce(s => setWidth(s, startWidth + (startX - event.clientX)))
           }}
           onPointerUp={(event) => {
             if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
             event.currentTarget.releasePointerCapture(event.pointerId)
             const { startX, startWidth } = widthDrag.current
-            store.reduce(s => setWidth(s, clampWidth(startWidth + (startX - event.clientX))))
+            store.reduce(s => setWidth(s, startWidth + (startX - event.clientX)))
             setDraggingWidth(false)
           }}
         />
         <div className={css.panelBody}>
-          <TabBar
-            paneId={rootPaneId}
-            tabs={paneTabs}
-            active={activeTabId}
-            onActivate={(tabId) => { store.reduce(s => activateTab(s, rootPaneIdOf(s), tabId)) }}
-            onClose={(tabId) => { store.reduce(s => closeTab(s, rootPaneIdOf(s), tabId)) }}
-            onNewTab={onNewTab}
+          <SplitTree
+            node={state.splits}
+            ctx={ctx}
+            store={store}
+            service={service}
+            cwd={cwd}
+            panelOpen={state.panelOpen}
             newTabOptions={newTabOptions}
-            getTabIcon={tabIconOf}
-            /* No drag-to-split in this shell: a drop onto the strip just
-               re-activates the dragged tab (a no-op merge into the only pane). */
-            onDropTab={(payload: TabDragPayload) => {
-              store.reduce(s => activateTab(s, rootPaneIdOf(s), payload.tabId))
-            }}
+            onNewTab={onNewTab}
           />
-          {paneTabs.length > 0 ? (
-            /* Every tab stays MOUNTED (inactive ones hidden), so switching
-               never tears down the content: a terminal keeps its pty
-               connection and scrollback. The unmount happens only when a
-               tab is truly closed. */
-            <div className={css.paneContent}>
-              {paneTabs.map(tab => (
-                <div
-                  key={tab.id}
-                  className={clsx(css.paneTab, tab.id !== activeTab?.id && css.paneTabHidden)}
-                >
-                  {descriptorOf(tab) !== undefined && (
-                    <TabContent
-                      tab={tab}
-                      descriptor={descriptorOf(tab)!}
-                      ctx={ctx}
-                      store={store}
-                      cwd={cwd}
-                      visible={state.panelOpen && tab.id === activeTab?.id}
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className={css.paneEmptyCards}>
-              {newTabOptions.map(option => (
-                <button
-                  key={option.id}
-                  type="button"
-                  className={css.paneCard}
-                  disabled={option.disabled === true}
-                  title={option.label}
-                  onClick={() => { onNewTab(option.id) }}
-                >
-                  {option.icon ?? null}
-                  <span>{option.label}</span>
-                </button>
-              ))}
-            </div>
-          )}
+        </div>
+      </div>
+      )}
+
+      {/* The bottom panel: an independent workbench spanning from the host's
+          center column (see the left-inset effect above) to the viewport's
+          right edge — INCLUDING under the right panel when both are open
+          (the right panel's higher z-index stacks it on top; see
+          sidebar.module.css). Squeezes the host's chat height, not its
+          width. A tab dragged to a pane's top/bottom edge (see
+          SplitPane.tsx's drag-to-edge zoning) can land here even though
+          it's a SEPARATE split tree (`state.bottomSplits`) from the right
+          panel's (`state.splits`) — `moveTabToEdge` already handles
+          cross-tree drops (both trees live in the one `SidebarState` the
+          same `store.reduce` operates over). */}
+      {state !== undefined && (
+      <div
+        ref={bottomPanelRef}
+        className={clsx(css.bottomPanel, !bottomOpen && css.bottomPanelHidden)}
+        style={{ height: state.bottomHeight }}
+        data-dragging={draggingHeight || undefined}
+      >
+        <div
+          className={clsx(css.bottomResize, draggingHeight && css.bottomResizeActive)}
+          onPointerDown={(event) => {
+            event.preventDefault()
+            event.currentTarget.setPointerCapture(event.pointerId)
+            heightDrag.current = { startY: event.clientY, startHeight: state.bottomHeight }
+            setDraggingHeight(true)
+          }}
+          onPointerMove={(event) => {
+            if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
+            const { startY, startHeight } = heightDrag.current
+            store.reduce(s => setBottomHeight(s, startHeight + (startY - event.clientY)))
+          }}
+          onPointerUp={(event) => {
+            if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
+            event.currentTarget.releasePointerCapture(event.pointerId)
+            const { startY, startHeight } = heightDrag.current
+            store.reduce(s => setBottomHeight(s, startHeight + (startY - event.clientY)))
+            setDraggingHeight(false)
+          }}
+        />
+        <button
+          type="button"
+          className={css.bottomClose}
+          aria-label={t('collapseBottom')}
+          onClick={() => { store.reduce(toggleBottomPanel) }}
+        >
+          <IconPanelBottomOutline16 />
+        </button>
+        <div className={css.panelBody}>
+          <SplitTree
+            node={state.bottomSplits}
+            ctx={ctx}
+            store={store}
+            service={service}
+            cwd={cwd}
+            panelOpen={bottomOpen}
+            newTabOptions={newTabOptions}
+            onNewTab={onNewTab}
+          />
         </div>
       </div>
       )}

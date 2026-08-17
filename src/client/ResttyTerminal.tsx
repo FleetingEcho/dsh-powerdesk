@@ -16,6 +16,7 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Restty, getBuiltinTheme, type GhosttyTheme } from 'restty'
+import { parseGhosttyColor } from 'restty/internal'
 import { api, resttyWsUrl, sidebarWsUrl, type SessionScope, type TerminalDepsStatus } from './api.ts'
 import { createResttyTransport, type ResttyTransportListeners } from './restty-transport.ts'
 import { createSidebarAdapterTransport } from './adapter-transport.ts'
@@ -63,14 +64,23 @@ function buildResttyTheme(prefs: ResttyPrefs): GhosttyTheme | undefined {
     theme = undefined
   }
   if (theme === undefined) return undefined
+  // effectiveTokenValue returns a computed CSS color STRING (e.g.
+  // "rgb(21, 21, 23)"), but GhosttyTheme.colors.background/foreground are
+  // typed as ThemeColor OBJECTS ({r,g,b,a}, 0-255) — restty's WebGPU
+  // renderer reads `.b` etc. off them directly for the clear-color float
+  // conversion. Assigning the raw string here left `.b` undefined, which
+  // WebGPU's `beginRenderPass` rejects as "non-finite". `parseGhosttyColor`
+  // does the CSS-string → ThemeColor conversion restty itself uses.
   const bg = effectiveTokenValue('--dsw-alias-bg-base')
   const fg = effectiveTokenValue('--dsw-alias-label-primary')
   const colors = { ...theme.colors }
   if (Object.prototype.hasOwnProperty.call(colors, 'background') && bg !== '') {
-    (colors as Record<string, unknown>).background = bg
+    const parsed = parseGhosttyColor(bg)
+    if (parsed !== null) colors.background = parsed
   }
   if (Object.prototype.hasOwnProperty.call(colors, 'foreground') && fg !== '') {
-    (colors as Record<string, unknown>).foreground = fg
+    const parsed = parseGhosttyColor(fg)
+    if (parsed !== null) colors.foreground = parsed
   }
   return { ...theme, colors }
 }

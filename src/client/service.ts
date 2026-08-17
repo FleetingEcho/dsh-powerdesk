@@ -305,6 +305,12 @@ export interface PowerdeskSidebarService {
    * derived flows gate on it).
    */
   isTabEnabled(id: string): boolean
+  /** Enable/disable a tab type (the Settings Side card's per-tab toggle).
+   *  Persisted to localStorage (independent of the dsh-better-sidebar-shaped
+   *  `SidebarPrefs`/`store.getPrefs()` plumbing, which this self-contained
+   *  plugin never populates) and notifies `subscribe` listeners so the +
+   *  menu and the settings cards re-render immediately. */
+  setTabEnabled(id: string, enabled: boolean): void
   /** Whether a file viewer is enabled (absent `viewersEnabled[id]` = enabled). */
   isViewerEnabled(id: string): boolean
   /**
@@ -456,6 +462,35 @@ function safeCall(fn: () => void): void {
   }
 }
 
+/** localStorage key for {@link PowerdeskSidebarService.setTabEnabled}'s persistence. */
+const TABS_ENABLED_STORAGE_KEY = 'dsh-powerdesk:tabs-enabled'
+
+function readPersistedTabsEnabled(): Record<string, boolean> {
+  if (typeof localStorage === 'undefined') return {}
+  try {
+    const raw = localStorage.getItem(TABS_ENABLED_STORAGE_KEY)
+    if (raw === null) return {}
+    const parsed = JSON.parse(raw) as unknown
+    if (typeof parsed !== 'object' || parsed === null) return {}
+    const result: Record<string, boolean> = {}
+    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof value === 'boolean') result[key] = value
+    }
+    return result
+  } catch {
+    return {}
+  }
+}
+
+function writePersistedTabsEnabled(map: Record<string, boolean>): void {
+  if (typeof localStorage === 'undefined') return
+  try {
+    localStorage.setItem(TABS_ENABLED_STORAGE_KEY, JSON.stringify(map))
+  } catch {
+    // Quota / private mode: the toggle stays in-memory for this session.
+  }
+}
+
 /**
  * Create one BetterSidebar service bound to a store. The service owns the
  * tab/viewer registries (Map + listener set) and proxies openTab/closeTab
@@ -507,9 +542,22 @@ export function createPowerdeskSidebarService(store: SidebarStore): PowerdeskSid
   const getFileViewers = (): readonly FileViewerDescriptor[] => Array.from(viewers.values())
   const getTab = (id: string): TabDescriptor | undefined => tabs.get(id)
 
-  // The enable switches come from the user's side card prefs (the shared
-  // store the service is bound to): an absent key means enabled.
-  const isTabEnabled = (id: string): boolean => store.getPrefs().tabsEnabled[id] !== false
+  // Tab enable switches: a service-local, localStorage-backed map — an
+  // absent key means enabled. Deliberately NOT routed through
+  // store.getPrefs().tabsEnabled: that field belongs to the
+  // dsh-better-sidebar-shaped SidebarPrefs document, which this
+  // self-contained plugin never populates (no settings RPC), so it would
+  // always read back {} and the toggle would silently do nothing.
+  let tabsEnabled = readPersistedTabsEnabled()
+  const isTabEnabled = (id: string): boolean => tabsEnabled[id] !== false
+  const setTabEnabled = (id: string, enabled: boolean): void => {
+    const next = { ...tabsEnabled }
+    if (enabled) delete next[id]
+    else next[id] = false
+    tabsEnabled = next
+    writePersistedTabsEnabled(next)
+    notify()
+  }
   const isViewerEnabled = (id: string): boolean => store.getPrefs().viewersEnabled[id] !== false
 
   const matchFileViewer = (path: string, head?: Uint8Array): FileViewerDescriptor | undefined => {
@@ -741,6 +789,7 @@ export function createPowerdeskSidebarService(store: SidebarStore): PowerdeskSid
     getFileViewers,
     getTab,
     isTabEnabled,
+    setTabEnabled,
     isViewerEnabled,
     matchFileViewer,
     openTab,

@@ -40,6 +40,32 @@ export type BrowserProbeResult = {
   frameAncestors?: string[]
 }
 
+/** One fs.list directory entry (mirror of the host's FsEntry). */
+export interface FsEntry {
+  name: string
+  isDir: boolean
+  size: number
+}
+
+export interface FsListResult {
+  path: string
+  entries: FsEntry[]
+}
+
+export interface FsReadResult {
+  path: string
+  content: string
+  truncated: boolean
+}
+
+/** One node of the Notes tab's recursive markdown tree (mirror of the host's MdTreeNode). */
+export interface MdTreeNode {
+  name: string
+  path: string
+  isDir: boolean
+  children?: MdTreeNode[]
+}
+
 async function call<T>(method: string, payload: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
   let response: Response
   try {
@@ -94,6 +120,33 @@ export const api = {
    *  forbids being embedded (X-Frame-Options / frame-ancestors). */
   browserProbe: (url: string, signal?: AbortSignal) =>
     call<BrowserProbeResult>('browser.probe', { url }, signal),
+  /** List one directory's immediate children (Explorer tab). */
+  fsList: (path: string, signal?: AbortSignal) =>
+    call<FsListResult>('fs.list', { path }, signal),
+  /** Read one file's content, capped server-side at a few MB (Editor tab). */
+  fsRead: (path: string, signal?: AbortSignal) =>
+    call<FsReadResult>('fs.read', { path }, signal),
+  /** Overwrite one file's content (Editor tab save). */
+  fsWrite: (path: string, content: string) =>
+    call<{ path: string }>('fs.write', { path, content }),
+  /** Create a NEW empty file; fails if it already exists (Notes "new note"). */
+  fsCreate: (path: string) =>
+    call<{ path: string }>('fs.create', { path }),
+  /** Create a directory, including missing parents (Notes "new folder"). */
+  fsMkdir: (path: string) =>
+    call<{ path: string }>('fs.mkdir', { path }),
+  /** Rename/move a file or folder (Notes rename). */
+  fsRename: (from: string, to: string) =>
+    call<{ path: string }>('fs.rename', { from, to }),
+  /** Delete a file or folder, recursively (Notes delete). */
+  fsDelete: (path: string) =>
+    call<{ path: string }>('fs.delete', { path }),
+  /** The recursive `.md` tree over a bound folder (Notes tab). */
+  fsListMarkdownTree: (path: string, signal?: AbortSignal) =>
+    call<{ path: string; children: MdTreeNode[] }>('fs.listMarkdownTree', { path }, signal),
+  /** The host's home directory (the folder-picker modal's starting point). */
+  fsHome: (signal?: AbortSignal) =>
+    call<{ path: string }>('fs.home', {}, signal),
 }
 
 /**
