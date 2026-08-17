@@ -478,41 +478,217 @@
   display: none;
 }
 
-/* An empty pane's welcome cards: a responsive grid of compact cards — as
-   many per row as the pane width allows; rows that cannot fit the pane
-   height are clipped (never scrolled or squeezed smaller). */
+/* An empty pane's "new page" home: a centered header (heading + subheading)
+   above a responsive card grid. The cards are the entry points to open a
+   tool (terminal / explorer / notes / browser) in this pane; clicking one
+   calls onNewTabHere(typeId). Designed to read as a real landing page, not
+   a cramped list — generous padding, a colored icon chip, a bold label, and
+   a one-line description, with a lift + accent border on hover. Rows that
+   cannot fit the pane height are clipped (never squeezed smaller). */
 .paneEmptyCards {
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  align-content: start;
-  gap: 8px;
-  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 28px 20px 20px;
   overflow: hidden;
+}
+
+.paneEmptyHeader {
+  flex: none;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+}
+
+.paneEmptyHeaderText {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.paneEmptyHeading {
+  margin: 0;
+  font: var(--dsw-font-s-strong-14);
+  color: var(--dsw-alias-label-primary);
+  line-height: 1.3;
+}
+
+.paneEmptySubheading {
+  margin: 0;
+  font: var(--dsw-font-xs-13);
+  color: var(--dsw-alias-label-tertiary);
+  line-height: 1.4;
+}
+
+/* Horizontal/vertical layout radio: a two-button segmented control that
+   reorients the split owning this empty pane (side-by-side vs stacked).
+   Lives in the card-page header, right-aligned, so the heading text keeps
+   the left side. Compact (28px square buttons) to fit the narrow right
+   sidebar. */
+.paneLayoutRadio {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.paneLayoutOption {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+  transition: background 120ms var(--dsh-ease-in-out, ease),
+              color 120ms var(--dsh-ease-in-out, ease);
+}
+
+.paneLayoutOption:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.paneLayoutOptionSelected {
+  background: var(--dsw-alias-interactive-bg-active);
+  color: var(--dsw-alias-brand-primary);
+}
+
+.paneLayoutOptionSelected:hover {
+  background: var(--dsw-alias-interactive-bg-active);
+  color: var(--dsw-alias-brand-primary);
+}
+
+/* The header's right-aligned controls cluster: the layout radio + the
+   close button, grouped so they sit together at the header's right edge.
+   Gated on the leaf having a parent split (see SplitPane.tsx) — a root
+   pane renders neither. */
+.paneEmptyControls {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Close button: dismiss the empty pane (undo the "+" split). Same 28px
+   square scale as the layout-radio options so the two read as one cluster;
+   a circular-ish outline button that reads as "remove this pane". */
+.paneCloseButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+  transition: background 120ms var(--dsh-ease-in-out, ease),
+              color 120ms var(--dsh-ease-in-out, ease),
+              border-color 120ms var(--dsh-ease-in-out, ease);
+}
+
+.paneCloseButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+  border-color: var(--dsw-alias-border-l2);
+}
+
+.paneCardGrid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  align-content: start;
+  gap: 12px;
 }
 
 .paneCard {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
   min-width: 0;
-  padding: 12px 8px;
+  padding: 14px;
   border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-secondary);
-  font: var(--dsw-font-xxs-strong-12);
   cursor: pointer;
-  text-align: center;
+  text-align: left;
+  transition: background 120ms var(--dsh-ease-in-out, ease),
+              border-color 120ms var(--dsh-ease-in-out, ease),
+              transform 120ms var(--dsh-ease-in-out, ease),
+              box-shadow 120ms var(--dsh-ease-in-out, ease);
+}
+
+.paneCardIcon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--dsw-alias-interactive-bg-hover-accent);
+  color: var(--dsw-alias-brand-primary);
+  font-size: 16px;
+}
+
+.paneCardText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.paneCardLabel {
+  font: var(--dsw-font-s-strong-14);
+  color: var(--dsw-alias-label-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.paneCardDesc {
+  font: var(--dsw-font-xxs-12);
+  color: var(--dsw-alias-label-tertiary);
+  line-height: 1.4;
+  /* Clamp to two lines so a long description never blows the card height. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .paneCard:hover:not(:disabled) {
-  background: var(--dsw-alias-interactive-bg-hover);
-  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-bg-layer-2);
   border-color: var(--dsw-alias-border-l2);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.paneCard:hover:not(:disabled) .paneCardIcon {
+  background: var(--dsw-alias-interactive-bg-active);
+}
+
+.paneCard:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: none;
 }
 
 .paneCard:disabled {
@@ -1915,6 +2091,8 @@
 .tabClose:focus-visible,
 .tabBarPlus:focus-visible,
 .paneCard:focus-visible,
+.paneLayoutOption:focus-visible,
+.paneCloseButton:focus-visible,
 .explorerRow:focus-visible,
 .explorerRef:focus-visible,
 .gitRowMain:focus-visible,
@@ -2123,4 +2301,365 @@
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+/* ── Extensions block (settings card) ───────────────────────────────────── */
+
+.extSection {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--dsw-alias-border-l1);
+}
+
+.extHeading {
+  margin: 0 0 8px;
+  font: var(--dsw-font-s-strong-14);
+  color: var(--dsw-alias-label-primary);
+}
+
+.extWarning {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font: var(--dsw-font-xxs-12);
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-bg-layer-1);
+  border: 1px solid var(--dsw-alias-border-l2);
+}
+
+.extActions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.extActions button,
+.extPromptActions button {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font: var(--dsw-font-xxs-12);
+  cursor: pointer;
+}
+
+.extActions button:disabled,
+.extPromptActions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.extPromptPrimary {
+  background: var(--dsw-alias-label-primary) !important;
+  color: var(--dsw-alias-bg-base) !important;
+  border-color: transparent !important;
+}
+
+.extList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.extRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.extRowIcon {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--dsw-alias-bg-layer-2);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.extRowBody {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.extRowTitle {
+  font: var(--dsw-font-s-strong-14);
+  color: var(--dsw-alias-label-primary);
+}
+
+.extRowMeta {
+  font: var(--dsw-font-xxs-12);
+  color: var(--dsw-alias-label-tertiary);
+  overflow-wrap: anywhere;
+}
+
+.extRowPath {
+  font: var(--dsw-font-xxs-12);
+  color: var(--dsw-alias-label-tertiary);
+  opacity: 0.75;
+  overflow-wrap: anywhere;
+}
+
+.extRowRemove {
+  flex: none;
+  align-self: center;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: var(--dsw-font-xxs-12);
+  cursor: pointer;
+}
+
+.extRowRemove:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.extEmpty {
+  margin: 0;
+  font: var(--dsw-font-xxs-12);
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.extError {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font: var(--dsw-font-xxs-12);
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-bg-layer-2);
+  overflow-wrap: anywhere;
+}
+
+.extPrompt {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.extPromptHint {
+  margin: 0;
+  font: var(--dsw-font-xxs-12);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.extPromptFile {
+  margin: 0;
+  font: var(--dsw-font-xxs-12);
+  color: var(--dsw-alias-label-tertiary);
+  overflow-wrap: anywhere;
+}
+
+.extPromptField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font: var(--dsw-font-xxs-12);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.extPromptField input {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  font: var(--dsw-font-xxs-12);
+}
+
+.extPromptActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* --- Terminal appearance panel (Powerdesk Side card) --------------------- */
+
+.appearanceSection {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--dsw-alias-border-l1);
+}
+
+.appearanceHeading {
+  margin: 0 0 8px;
+  font: var(--dsw-font-s-strong-14);
+  color: var(--dsw-alias-label-primary);
+}
+
+.appearanceGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+/* Font family spans the full row (names are long). */
+.appearanceFieldFull {
+  grid-column: 1 / -1;
+}
+
+.appearanceField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font: var(--dsw-font-xxs-12);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.appearanceFieldLabel {
+  font: var(--dsw-font-xxs-12);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.appearanceControl {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  font: var(--dsw-font-s-14);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.appearanceControl:focus {
+  outline: none;
+  border-color: var(--dsw-alias-border-l3, var(--dsw-alias-border-l2));
+}
+
+/* --- Radix Select trigger (mirrors .appearanceControl) --- */
+.appearanceSelectTrigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  font: var(--dsw-font-s-14);
+  width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+  text-align: left;
+}
+
+.appearanceSelectTrigger:hover {
+  border-color: var(--dsw-alias-border-l3, var(--dsw-alias-border-l2));
+}
+
+.appearanceSelectTrigger:focus-visible {
+  outline: none;
+  border-color: var(--dsw-alias-border-l3, var(--dsw-alias-border-l2));
+  box-shadow: 0 0 0 2px var(--dsw-alias-interactive-bg-active, transparent);
+}
+
+.appearanceSelectTrigger[data-placeholder] {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.appearanceSelectTrigger:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.appearanceSelectCaret {
+  display: inline-flex;
+  align-items: center;
+  color: var(--dsw-alias-label-tertiary);
+  flex-shrink: 0;
+}
+
+/* --- Radix Select dropdown (portaled) --- */
+.appearanceSelectContent {
+  min-width: var(--radix-select-trigger-width);
+  max-height: var(--radix-select-content-available-height, 280px);
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-elevated, var(--dsw-alias-bg-base));
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+  z-index: 1000;
+}
+
+.appearanceSelectViewport {
+  padding: 4px;
+}
+
+.appearanceSelectItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font: var(--dsw-font-s-14);
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+}
+
+.appearanceSelectItem[data-highlighted] {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.appearanceSelectItem[data-disabled] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.appearanceSelectIndicator {
+  display: inline-flex;
+  align-items: center;
+  color: var(--dsw-alias-label-primary);
+  flex-shrink: 0;
+}
+
+/* Inline link-style toggle between the font picker and manual entry. */
+.appearanceInlineToggle {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 0;
+  background: none;
+  border: none;
+  font: var(--dsw-font-xxs-12);
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.appearanceInlineToggle:hover {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.appearanceHint,
+.appearanceReopenHint {
+  margin: 8px 0 0;
+  font: var(--dsw-font-xxs-12);
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.appearanceReopenHint {
+  font-style: italic;
 }

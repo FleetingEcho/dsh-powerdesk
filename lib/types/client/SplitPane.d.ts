@@ -29,9 +29,24 @@ interface SplitTreeCommonProps {
     panelOpen: boolean;
     newTabOptions: NewTabOption[];
     onNewTab: (typeId: string) => void;
+    /** The split direction the "+" button uses when it opens a new pane:
+     *  'col' (stack) for the narrow right sidebar, 'row' (side-by-side) for
+     *  the wide bottom panel — so the new pane gets usable space. */
+    defaultSplitDir: 'row' | 'col';
+    /** The `dir` of the leaf's IMMEDIATE parent split, or undefined when the
+     *  leaf is the tree root (no parent). Set by {@link SplitTree} as it
+     *  recurses (each split node overrides this for its children with its own
+     *  `dir`), so a leaf always sees the direction of the split that owns it.
+     *  The empty-state card page's horizontal/vertical radio reads this to
+     *  show which option is selected and reorients it via `reorientSplit`. */
+    parentSplitDir?: 'row' | 'col';
 }
 /** Recursive split-tree renderer: a leaf becomes a pane, a split becomes a
- *  flex row/col of children with draggable dividers between them. */
+ *  flex row/col of children with draggable dividers between them. As it
+ *  recurses, each split node OVERRIDES `parentSplitDir` (from the common
+ *  props) with its own `dir` for its children, so a leaf always receives the
+ *  direction of its IMMEDIATE parent split — the empty-state card page's
+ *  horizontal/vertical radio reads it to show the selected option. */
 export declare function SplitTree(props: SplitTreeCommonProps & {
     node: SplitNode;
 }): ReactNode;

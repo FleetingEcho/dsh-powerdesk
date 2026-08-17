@@ -33,13 +33,10 @@ import { createPowerdeskSidebarService } from './service.ts'
 import { createSidebarStore, EXPLORER_TAB_ID, type SidebarStore } from './state.ts'
 import { attachLocale, t } from './locales.ts'
 import { resetChunks } from './chunk-loader.ts'
+import { ExtensionHost } from './extensions.ts'
 import { lazyChunkComponent } from './lazy-chunk.tsx'
-import {
-  POWERDESK_TAB_ID,
-  TERMINAL_FONT_SIZE_MAX,
-  TERMINAL_FONT_SIZE_MIN,
-  readPrefsFromStore,
-} from './prefs.ts'
+import { POWERDESK_TAB_ID } from './prefs.ts'
+import { useTerminalPrefs } from './useTerminalPrefs.ts'
 import type { ResttyTerminalProps } from './ResttyTerminal.tsx'
 import type { BrowserViewProps } from './BrowserView.tsx'
 import type { CodeEditorProps } from './CodeEditor.tsx'
@@ -150,13 +147,16 @@ function IconNotes({ size }: { size: number }): ReactNode {
  * pause rendering without a remount.
  */
 function ResttyTabView(props: TabComponentProps): ReactNode {
-  const { store, scope, tab, visible } = props as {
-    store: TabComponentProps['store']
+  const { scope, tab, visible } = props as {
     scope: TabComponentProps['scope']
     tab: SidebarTab
     visible?: boolean
   }
-  const prefs = readPrefsFromStore(store)
+  // Global terminal-appearance prefs (font/weight/size/theme), read reactively
+  // from the single `dsh-powerdesk:prefs` localStorage key via useSyncExternalStore
+  // — a settings edit in the Powerdesk Side card re-renders this view (and
+  // recreates restty for font changes) without a remount.
+  const prefs = useTerminalPrefs()
   return createElement(TerminalView, {
     scope,
     tabId: tab.id,
@@ -182,7 +182,11 @@ function BrowserTabView(props: TabComponentProps): ReactNode {
 }
 
 /** Build the terminal tab descriptor (registered into powerdesk's own
- *  powerdeskSidebar service). */
+ *  powerdeskSidebar service). Terminal appearance (font family/weight/size,
+ *  theme) and the PTY backend are owned by the Powerdesk Side card's
+ *  TerminalAppearancePanel, not by a per-tab settings popup — powerdesk's own
+ *  sidebar shell never rendered the `pluginToggles` rows this descriptor used
+ *  to declare, so they were dead. */
 function buildResttyTabDescriptor(): TabDescriptor {
   const descriptor = {
     id: POWERDESK_TAB_ID,
@@ -199,15 +203,6 @@ function buildResttyTabDescriptor(): TabDescriptor {
           title: `${t('terminal')} ${String(n)}`,
         } as SidebarTab,
       }
-    },
-    settings: {
-      label: () => t('tabTitle'),
-      pluginToggles: [
-        { key: 'fontFamily', type: 'text' as const, title: () => t('settingsFontFamilyTitle'), desc: () => t('settingsFontFamilyDesc'), placeholder: () => t('settingsFontFamilyPlaceholder') },
-        { key: 'fontSize', type: 'number' as const, title: () => t('settingsFontSizeTitle'), desc: () => t('settingsFontSizeDesc'), min: TERMINAL_FONT_SIZE_MIN, max: TERMINAL_FONT_SIZE_MAX, unit: 'px' },
-        { key: 'ptyBackend', type: 'text' as const, title: () => t('settingsBackendTitle'), desc: () => t('settingsBackendDesc'), placeholder: 'own' },
-        { key: 'themeName', type: 'text' as const, title: () => t('settingsThemeTitle'), desc: () => t('settingsThemeDesc') },
-      ],
     },
     component: (props: TabComponentProps) => createElement(ResttyTabView, props),
   }
@@ -414,6 +409,18 @@ export function apply(ctx: Context): void {
     'dsh-powerdesk: notes tab',
   )
 
+  // User-installed extensions register through the same service as the
+  // builtins, but asynchronously: the installed list comes from the host, so
+  // the first refresh is kicked off here and its registrations land a moment
+  // after mount. A failed fetch is not fatal — the sidebar mounts either way
+  // (see ExtensionHost.refresh). The settings card refreshes this same host
+  // after an install or a removal.
+  const extensionHost = new ExtensionHost(service)
+  ctx.effect(() => {
+    void extensionHost.refresh()
+    return () => { extensionHost.dispose() }
+  }, 'dsh-powerdesk: extension tabs')
+
   // Register a "Powerdesk" Side card in the DSH Settings shell so the
   // terminal and browser have a discoverable entry. The sidebar's own
   // toggle cluster sits at the top-right corner; this section gives the
@@ -428,7 +435,7 @@ export function apply(ctx: Context): void {
       id: 'dsh-powerdesk',
       order: 100,
       label: () => t('settingsNav'),
-      inject: () => ({ sidebar: ctx.get('powerdeskSidebar') }),
+      inject: () => ({ sidebar: ctx.get('powerdeskSidebar'), extensions: extensionHost }),
     }, SettingsSection)),
     'dsh-powerdesk: settings section',
   )

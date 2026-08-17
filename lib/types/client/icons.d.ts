@@ -39,3 +39,14 @@ export declare const IconMarkdownOutline16: ({ size, className }: IconProps) => 
 export declare const IconHtmlOutline16: ({ size, className }: IconProps) => import("react").JSX.Element;
 /** Browser tab glyph: a globe with meridians. */
 export declare const IconGlobeOutline16: ({ size, className }: IconProps) => import("react").JSX.Element;
+/**
+ * Horizontal split glyph: a frame split by a VERTICAL divider into two
+ * side-by-side panes (split dir 'row'). The card page's "Horizontal" radio
+ * option.
+ */
+export declare const IconSplitHorizontal16: ({ size, className }: IconProps) => import("react").JSX.Element;
+/**
+ * Vertical split glyph: a frame split by a HORIZONTAL divider into two
+ * stacked panes (split dir 'col'). The card page's "Vertical" radio option.
+ */
+export declare const IconSplitVertical16: ({ size, className }: IconProps) => import("react").JSX.Element;

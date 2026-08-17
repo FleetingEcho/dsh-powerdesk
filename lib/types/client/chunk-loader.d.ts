@@ -41,7 +41,16 @@
  * in-memory cache, so a hot-reloaded core bundle re-fetches and re-executes
  * the current chunk script on the next lazy open.
  */
-export type ChunkName = 'terminal' | 'browser' | 'editor';
+/** The chunks built into this plugin's own bundle. */
+export type BuiltinChunkName = 'terminal' | 'browser' | 'editor';
+/**
+ * A loadable chunk: a built-in name, or `ext:<id>` for a user-installed
+ * extension. The `ext:` prefix is what keeps a third-party bundle from
+ * claiming a built-in slot — the registry key, the URL, and the tab id all
+ * carry it, so an extension called `terminal` is `ext:terminal` everywhere
+ * and never collides with the real terminal chunk.
+ */
+export type ChunkName = BuiltinChunkName | `ext:${string}`;
 /** The module exports a chunk factory provides (namespace-ish record). */
 export type ChunkExports = Record<string, unknown>;
 /**
@@ -66,6 +75,14 @@ export declare function setChunkLoader(name: ChunkName, loader: ScriptLoader): v
  * only downloads/parses when a terminal tab is first opened.
  */
 export declare function loadChunk(name: ChunkName): Promise<ChunkExports>;
+/**
+ * Forget one chunk so the next open re-fetches and re-executes it. Used when
+ * an extension is reinstalled: the bundle route revalidates by ETag, so the
+ * changed script is re-downloaded, and re-execution overwrites the registry
+ * slot with the new factory. Without this the memoized promise would keep
+ * serving the previous install's exports for the life of the page.
+ */
+export declare function dropChunk(name: ChunkName): void;
 /**
  * Drop all chunk state for a fresh plugin activation (HMR-safe): clear the
  * in-memory cache and any test-registry entries, so the next lazy open

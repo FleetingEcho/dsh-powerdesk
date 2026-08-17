@@ -13,6 +13,8 @@ export declare class ResttyError extends Error {
     readonly status: number;
     constructor(code: ResttyErrorCode, message: string, status?: number);
 }
+/** Body size bound of one JSON request (defense against unbounded reads). */
+export declare const MAX_BODY_BYTES: number;
 /** Success envelope of one API method. */
 export interface ResttyOk<T> {
     ok: true;
@@ -26,8 +28,15 @@ export interface ResttyErr {
         message: string;
     };
 }
-/** Read and parse the JSON request body (bounded; malformed → bad-request). */
-export declare function readJsonBody(req: ResttyHttpRequest): Promise<unknown>;
+/**
+ * Read and parse the JSON request body (bounded; malformed → bad-request).
+ *
+ * @param maxBytes - per-request bound. Defaults to {@link MAX_BODY_BYTES};
+ * the extension-upload method raises it, since a base64 archive legitimately
+ * exceeds the limit every other method needs. Passing the bound per call
+ * keeps the default tight instead of widening it for the whole route.
+ */
+export declare function readJsonBody(req: ResttyHttpRequest, maxBytes?: number): Promise<unknown>;
 /** Write a JSON response with the given status. */
 export declare function writeJson(res: ResttyHttpResponse, status: number, body: unknown): void;
 /** Write the success envelope. */

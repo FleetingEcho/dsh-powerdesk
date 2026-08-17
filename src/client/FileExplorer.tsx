@@ -54,8 +54,8 @@ function joinPath(dir: string, name: string): string {
 
 /** `path` relative to `root` (falls back to the absolute path when `path`
  *  isn't actually under `root` — should not happen, the tree only ever
- *  descends from `root`). */
-function relativeTo(root: string, path: string): string {
+ *  descends from `root`). Exported for testing. */
+export function relativeTo(root: string, path: string): string {
   const normalizedRoot = root.replace(/[/\\]+$/, '')
   if (path === normalizedRoot) return basenameOf(normalizedRoot)
   if (path.startsWith(`${normalizedRoot}/`) || path.startsWith(`${normalizedRoot}\\`)) {
@@ -68,6 +68,17 @@ function relativeTo(root: string, path: string): string {
  *  drops the "copied" feedback on failure — permissions, insecure context). */
 function copyToClipboard(text: string, onDone: () => void): void {
   navigator.clipboard?.writeText(text).then(onDone).catch(() => {})
+}
+
+/**
+ * The relative-path reference copied by the `@` button. Always prefixed with
+ * `@` (the user's `@file` mention convention) — clicking the `@` icon on
+ * `package.json` copies `@package.json`, on `src/index.ts` copies
+ * `@src/index.ts`. The `@` is part of the copied text, not just the icon.
+ * Exported for testing.
+ */
+export function atReference(root: string, path: string): string {
+  return `@${relativeTo(root, path)}`
 }
 
 interface TreeProps {
@@ -112,7 +123,7 @@ function FileRow(props: { path: string; name: string; root: string; depth: numbe
           aria-label={t('explorerCopyRelative')}
           onClick={(event) => {
             event.stopPropagation()
-            copyToClipboard(relativeTo(root, path), () => { setCopied('relative') })
+            copyToClipboard(atReference(root, path), () => { setCopied('relative') })
           }}
         >
           @

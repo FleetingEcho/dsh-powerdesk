@@ -1,5 +1,7 @@
 # dsh-powerdesk
 
+<strong>English</strong> | <a href="README_ZH.md">简体中文</a>
+
 A [DSH](https://github.com/deepseek-ai/dsh) web plugin that adds a small IDE
 workbench to the DSH web UI: a GPU-accelerated **terminal**, a **file
 explorer**, a **notes** app, a **code editor**, and a sandboxed **browser** —
@@ -34,6 +36,25 @@ system.
 
 ---
 
+## Acknowledgements
+
+This plugin is inspired by
+[DSH-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) —
+sincere thanks to its authors for the panel / dock layout and the sidebar
+shell foundation Powerdesk built on.
+
+Building on that platform, Powerdesk grew into its own plugin architecture
+and redesigned the workbench around a performance-first terminal: the
+renderer is [restty](https://github.com/restty-dev/restty)
+(WebGPU/WebGL2 + WASM VT, Ghostty lineage) and the PTY backend is a **Rust**
+native addon ([napi-rs](https://napi.rs) +
+[portable-pty](https://github.com/wez/portable-pty)) instead of the stock
+C++ `node-pty`, which makes terminal I/O substantially faster and lighter.
+The split-tree state machine, the file / notes / editor / browser surfaces,
+and the extension system were redesigned from scratch on top of that base.
+
+---
+
 ## Requirements
 
 - **DSH** `>=0.0.1` installed and the `dsh` CLI on your `PATH`
@@ -42,7 +63,7 @@ system.
 - **A Rust toolchain** (`rustup`) — only needed if your platform doesn't have
   a committed prebuilt binary yet (see below); macOS users never need Rust.
 
-The PTY addon is looked up by platform triple (`src/rust-pty-deps.ts`); two
+The PTY addon is looked up by platform triple (`src/rust-pty-deps.ts`); three
 triples currently have a binary committed to the repo (`prebuilt/<triple>/`)
 and shipped with every install:
 
@@ -72,11 +93,19 @@ GitHub repo.
 
 `dsh plugin` forwards to pnpm *inside the profile directory*, so this fetches
 the repo as a git-hosted package (no local clone, no build step, no extra
-config):
+config). The repo is public, so the plain HTTPS URL works anonymously:
 
 ```bash
-dsh plugin --profile web add "dsh-powerdesk@github:FleetingEcho/dsh-powerdesk"
+dsh plugin --profile web add https://github.com/FleetingEcho/dsh-powerdesk.git
 ```
+
+pnpm reads the package name out of the repo, so no `dsh-powerdesk@` prefix is
+needed — though `dsh-powerdesk@<url>` works too and is what you want when
+pinning a branch or tag (`...git#my-branch`).
+
+Prefer SSH? `git+ssh://git@github.com/FleetingEcho/dsh-powerdesk.git` works
+too — it needs an SSH key registered on GitHub (`ssh -T git@github.com` to
+verify).
 
 That's it. `lib/` (the built client/host JS) is committed to the repo, so
 there's no `prepare`/lifecycle script for pnpm to run — no `allowBuilds`
@@ -104,7 +133,7 @@ pnpm build:rust       # needs the Rust toolchain (rustup); cargo build --release
 Clone the repo, build, then point DSH at the local checkout:
 
 ```bash
-git clone git@github.com:FleetingEcho/dsh-powerdesk.git
+git clone https://github.com/FleetingEcho/dsh-powerdesk.git
 cd dsh-powerdesk
 
 pnpm install
@@ -158,10 +187,10 @@ Open the **Terminal** tab. It opens in the active conversation's working
 directory; you can open multiple terminals per session up to the configured
 quota (the tab title shows the index: `Terminal 1`, `Terminal 2`, …).
 
-The terminal toolbar has a **copy** action. Font family / size / theme are
-stored prefs (`dsh-powerdesk:prefs` in `localStorage`) with sane defaults —
-there's currently no in-app settings UI to edit them; set them by writing to
-that key directly if you need to change the defaults.
+The terminal toolbar has a **copy** action. Font family / weight / size / theme
+are stored prefs (`dsh-powerdesk:prefs` in `localStorage`) with sane defaults
+(font size defaults to 16px) — edit them from the **Settings → Powerdesk**
+card, which exposes Radix-UI controls for the family, weight, size, and theme.
 
 If the native PTY binary is missing or fails to load, the terminal shows a
 repair banner with the exact command to run instead of crashing the plugin.
@@ -262,8 +291,18 @@ latest commit, then hard-refresh:
 
 ```bash
 dsh plugin --profile web remove dsh-powerdesk
-dsh plugin --profile web add "dsh-powerdesk@github:FleetingEcho/dsh-powerdesk"
+dsh plugin --profile web add https://github.com/FleetingEcho/dsh-powerdesk.git
 ```
+
+Confirm the new commit actually landed — the resolved sha is recorded in the
+profile lockfile:
+
+```bash
+grep 'dsh-powerdesk.git#' ~/.dsh/profiles/web/pnpm-lock.yaml
+```
+
+Host-half changes need a DSH restart; the client half only needs a
+hard-refresh.
 
 ### Option B (source / git channel)
 
@@ -307,6 +346,27 @@ restart) clears the in-memory copy.
 
 ---
 
+## Install troubleshooting
+
+### The plugin installs but does not load
+
+Check that the bundle row was added — `dsh.profile.bundles` must list
+`dsh-powerdesk` alongside the dependency:
+
+```bash
+cat ~/.dsh/profiles/web/package.json
+```
+
+If the dependency is present but the bundle row is not, the plugin mounts as
+a plain dependency and never loads. That is the symptom of a broken `link:`
+install (see Option B's note) — re-add with an absolute path or the git URL
+from Install → Option A.
+
+Host-half changes only take effect after a DSH restart; a running server
+keeps the previous code in memory even after `node_modules` is replaced.
+
+---
+
 ## Repair (terminal shows "Rust PTY loading failed")
 
 If the native PTY binary is missing, corrupt, or built for the wrong
@@ -336,6 +396,8 @@ dsh-powerdesk:
   terminalsPerSession: 3      # max live terminals per conversation session
   reconnectGraceMs: 30000     # keep a dropped pty alive this long for reconnect
   shell: ''                    # override the interactive shell (auto-detected if '')
+  extensionsEnabled: false    # allow user-installed extensions (see Extensions)
+  extensionsDir: ''            # where they live ('' = ~/.dsh/powerdesk/extensions)
 ```
 
 ### User prefs (`localStorage`, no host round-trip)
@@ -354,39 +416,114 @@ dsh-powerdesk:
 | --- | --- |
 | `DSH_POWERDESK_PTY_PATH` | Absolute path to a `.node` addon; beats every other resolution. |
 | `DSH_POWERDESK_PTY_TRIPLE` | Override the detected platform triple (e.g. `linux-x64-musl`). |
-| `DSH_POWERDESK_SHELL` | Override the Windows shell probe (default: `pwsh.exe` → `powershell.exe` → `cmd.exe`). |
+| `DSH_RESTTY_SHELL` | Override the Windows shell probe (default: first `pwsh.exe` on PATH or in a known install dir, else `powershell.exe`). |
 | `PREBUILT_BASE` | Override the prebuilt-binary download base URL (default: GitHub releases). |
 | `DSH_HOME` | Override the DSH home (default `~/.dsh`). |
 | `DSH_CMD` | Override the `dsh` CLI used by `install.sh` (default: `dsh`, then `npx`). |
 
 ---
 
-## Endpoints
+## Extensions
 
-| Route | Method | Purpose |
-| --- | --- | --- |
-| `/powerdesk/ws/terminal` | WS upgrade | The restty-native terminal WebSocket. |
-| `/powerdesk/api/session.cwd` | POST | Resolve the authoritative cwd for a session. |
-| `/powerdesk/api/pty.close` | POST | Release a terminal's quota immediately. |
-| `/powerdesk/api/terminal.deps` | POST | Degraded-mode repair info (the native binary is missing). |
-| `/powerdesk/api/browser.probe` | POST | Fetch a URL's headers to detect X-Frame-Options / frame-ancestors embed refusals. |
-| `/powerdesk/api/fs.list` | POST | List one directory's immediate children (Explorer, the folder picker). |
-| `/powerdesk/api/fs.read` | POST | Read one file's content, capped server-side (the editor). |
-| `/powerdesk/api/fs.write` | POST | Overwrite one file's content (editor save). |
-| `/powerdesk/api/fs.create` | POST | Create a new file exclusively — fails if it already exists (Notes "new note"). |
-| `/powerdesk/api/fs.mkdir` | POST | Create a directory, including missing parents. |
-| `/powerdesk/api/fs.rename` | POST | Rename/move a file or folder. |
-| `/powerdesk/api/fs.delete` | POST | Delete a file or folder, recursively. |
-| `/powerdesk/api/fs.listMarkdownTree` | POST | The recursive `.md` tree over a bound folder (Notes). |
-| `/powerdesk/api/fs.home` | POST | The host's home directory (the folder picker's starting point). |
-| `/powerdesk/bundle/<name>.js` | GET | Lazy chunks — `terminal`, `browser`, `editor` (ETag + 304). |
+Powerdesk can mount **your own React components** as sidebar tabs. An
+extension is a single bundled script plus a `powerdesk.json` manifest,
+uploaded as a `.tgz` from the Settings card.
 
-All routes pass the same browser-trust fence as the DSH `/api` gateway
-(loopback Host or `ctx.webRuntime.trustedHosts`; `sec-fetch-site: cross-site`
-refused; same-origin `Origin`). The `fs.*` routes have no extra path
-sandboxing beyond `resolve()`: the terminal already gives a user with access
-to this plugin unrestricted local shell access, so restricting the file API
-more tightly would not add any real security.
+### Security — read this first
+
+An extension runs **in the DSH page's own origin**, with full access to the
+DOM, your session, and the network. It has the same privileges as Powerdesk
+itself. There is no sandbox, and there cannot be one while extensions render
+into the tab bar and share the host's React instance.
+
+This is a **trusted local extensions** feature, not a marketplace. Install
+only code you have read or whose author you trust.
+
+Because of that, the feature is **off by default**. Turn it on deliberately:
+
+```yaml
+dsh-powerdesk:
+  extensionsEnabled: true
+```
+
+While it is off, `ext.install` / `ext.remove` return 403 and
+`/powerdesk/bundle/ext/*` 404s for every id — an extension left on disk from
+an earlier session cannot load.
+
+### Installing
+
+**Settings → Powerdesk → Extensions → Upload extension…**
+
+Accepted uploads, decided by the bytes rather than the file name:
+
+| Upload | Handling |
+| --- | --- |
+| `.tgz` / `.tar.gz` | Extracted; must contain `powerdesk.json` at the root (an `npm pack`-style `package/` wrapper is stripped). |
+| `.tar` | Same, uncompressed. |
+| `.js.gz` / `.js` | A bare bundle with no manifest — the card asks for an id and a display name. |
+
+Each extension is installed to `<extensionsDir>/<id>/`, replacing any previous
+install of the same id. Installs are atomic: the upload is staged in a
+temporary directory and moved into place only after its manifest and entry
+file both validate, so a rejected upload leaves the working install untouched.
+
+The settings card shows each extension's on-disk path and the sha256 of the
+archive it came from, so you can audit what is actually executing.
+
+### Removing
+
+**Settings → Powerdesk → Extensions → Remove** deletes the directory. To
+disable an extension without uninstalling it, use the enable/disable switch on
+its card in the tab grid above — extension tabs get the same switch as the
+built-in ones.
+
+### Authoring
+
+Start from the template:
+
+```bash
+cp -r templates/extension ~/my-extension
+cd ~/my-extension && pnpm install
+$EDITOR powerdesk.json          # pick an id and a title
+pnpm build && pnpm pack         # -> my-extension-0.0.0.tgz
+```
+
+See `templates/extension/README.md` for the component contract and the
+manifest reference. The one rule worth repeating: **do not bundle React** —
+it is external, and the host passes you its own instance. A second copy of
+React has its own hook dispatcher and every hook you call will throw.
+
+### How it works
+
+An extension reuses Powerdesk's existing lazy-chunk mechanism unchanged:
+
+1. The build wraps your code in a factory registered on the plugin-private
+   registry under `ext:<id>`:
+   `globalThis.__dshPowerdeskChunks__["ext:<id>"] = (require) => {…}`.
+2. On first open, the client injects
+   `<script src="/powerdesk/bundle/ext/<id>.js">`. The host resolves that id
+   through the manifest — never by concatenating the URL onto a path — and
+   serves the entry file with the same trust fence and ETag/304 handling as
+   the built-in chunks.
+3. The factory is called with a `require` that resolves `react`,
+   `react/jsx-runtime`, and the DSH client packages from the host's module
+   table, so your component shares the host's React.
+4. The resolved component is registered through the ordinary
+   `service.registerTab` contract, which is what gives it the loading
+   placeholder, the retry affordance, the error boundary, and the settings
+   switch for free.
+
+### Limits
+
+| Bound | Value |
+| --- | --- |
+| Upload size | 16 MiB |
+| Inflated archive | 32 MiB (enforced by zlib's `maxOutputLength`) |
+| Files per archive | 64 |
+| Per-file size | 8 MiB |
+
+Archives containing symlinks, hardlinks, device nodes, absolute paths, or any
+`..` segment are rejected at parse time.
 
 ---
 
@@ -414,67 +551,11 @@ channel (see Install → Option A) is a plain file copy with no build step, so
 whatever is in git *is* what installs. After any source change, run
 `pnpm build` (and `pnpm build:rust` if the Rust layer changed) and commit the
 result before pushing, or GitHub installs will silently ship stale code.
+That includes any code-split chunk `tsdown` emits into `lib/` — `package.json`
+`files` uses `lib/*.js` so hashed shared chunks ship too; narrowing it back to
+a hand-listed set will drop them and publish a package with dangling imports.
 Sourcemaps (`lib/**/*.map`) stay gitignored — dev-only, not needed at
 install time.
-
----
-
-## Project layout
-
-```
-dsh.plugin.json          # id dsh-external/dsh-powerdesk, main + client.main
-cordis.patch.yml         # bundle-patch mount row
-package.json             # peerDeps (dsh-*, cordis, react), restty, CodeMirror, lucide-react, ws, vitest, tsdown
-tsdown.config.ts         # host ESM + 2 client CJS bundles + 3 lazy chunks + purity gate + CSS-modules
-tsconfig.json            # ES2023, strict, noUncheckedIndexedAccess, verbatimModuleSyntax
-vitest.config.ts         # jsdom, tests/**/*.spec.ts(x)
-
-src/                     # host half (Node)
-  index.ts               # apply(): routes, ws upgrade, teardown
-  context-types.ts       # shared cordis service types (client-reachable, Node-free)
-  trust-fence.ts         # browser-trust fence (loopback / trustedHosts / sec-fetch-site)
-  wire.ts                # JSON envelope helpers + error codes
-  config.ts              # Schema config + resolvePowerdeskConfig
-  shell.ts               # interactive-shell resolution (POSIX / Windows)
-  pty-wire.ts            # PURE client→server frame dispatcher
-  rust-pty.ts             # multi-subscriber wrapper around the native single-callback surface
-  rust-pty-deps.ts        # lazy loader + degraded-mode status + triple resolution
-  rust-pty-manager.ts    # ${sessionId}:${tabId} pty table, quota, reconnect grace, transcript
-  bundle-route.ts        # /powerdesk/bundle/<name>.js (fenced, ETag, 304)
-  browser-probe.ts       # pure frame-ancestors CSP extractor (browser.probe route)
-  fs-api.ts              # Explorer/Notes/Editor file API (list/read/write/create/mkdir/rename/delete/markdown tree)
-
-rust/                    # native PTY crate (napi-rs + portable-pty)
-  src/lib.rs             # spawn + Pty (onData/onExit/write/resize/kill/pid)
-  Cargo.toml, build.rs, package.json
-
-src/client/              # client half (browser)
-  index.tsx              # apply(): locale, chunk reset, tab descriptor registration
-  SidebarShell.tsx        # the panel chrome: toggle cluster, right/bottom panel docking + resize
-  SplitPane.tsx           # the split-tree renderer + drag-to-edge/drag-between-panels
-  TabBar.tsx              # one pane's tab strip (drag source, + menu)
-  state.ts                # the split-tree state machine (splits/bottomSplits, persisted per session)
-  service.ts              # the tab/file-viewer registry service (ctx.powerdeskSidebar)
-  ResttyTerminal.tsx      # the terminal renderer lifecycle (transport, reconnect, repair, theme)
-  BrowserView.tsx         # the browser tab (address bar + sandboxed iframe + embed-blocked panel)
-  browser.ts              # pure URL policy + embeddability (unit-tested)
-  FileExplorer.tsx        # the Explorer tab (lazy per-directory fetch, bookmarks)
-  NotesView.tsx           # the Notes tab (recursive markdown tree + inline editor)
-  CodeEditor.tsx          # the CodeMirror wrapper (syntax highlighting, Dracula, save)
-  FolderPicker.tsx        # the folder-browser modal (shared by Explorer + Notes)
-  explorer-prefs.ts, notes-prefs.ts  # localStorage-backed bookmark/binding prefs
-  restty-transport.ts    # own-backend PtyTransport (surfaces close code/reason)
-  adapter-transport.ts   # better-sidebar-protocol-compatible PtyTransport (unused by default)
-  chunk-loader.ts        # lazy chunk fetch + memo + retry
-  lazy-chunk.tsx         # lazyChunkComponent()
-  chunks/terminal.tsx, chunks/browser.tsx, chunks/editor.tsx  # the 3 lazy chunk entries
-  SettingsSection.tsx    # the "Powerdesk" Settings Side card (tab-type toggle cards)
-  theme.ts, terminal-font.ts, open-when-sized.ts, prefs.ts, api.ts, locales.ts, icons.tsx
-  sidebar.module.css     # CSS Modules (hashed class maps)
-
-scripts/                 # install.sh, install.ps1, build-rust.sh
-tests/                  # vitest specs (pure units + fake WebSocket)
-```
 
 ---
 

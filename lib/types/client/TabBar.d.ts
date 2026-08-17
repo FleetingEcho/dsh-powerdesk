@@ -1,9 +1,13 @@
 /**
  * The tab strip of one pane: tabs capped at TAB_MAX_WIDTH (ellipsized),
  * overflow scrolls horizontally, a close button per tab, a four-way split
- * button cluster, and the + menu that opens new tabs (explorer / git /
- * terminal). Tabs are draggable; dropping onto another tab inserts before it,
- * dropping on the strip background appends to this pane.
+ * button cluster, and the + button. Clicking + opens a NEW pane (a fresh
+ * split of this pane) showing the empty-state card grid (explorer / notes /
+ * terminal / browser); the user picks a card to open that tab type there.
+ * There is NO dropdown menu — the user asked to remove it: "+" should
+ * ALWAYS open a new page showing the cards, never a pick-list. Tabs are
+ * draggable; dropping onto another tab inserts before it, dropping on the
+ * strip background appends to this pane.
  */
 import { type ReactNode } from 'react';
 import type { SidebarTab } from './state.ts';
@@ -14,6 +18,9 @@ export interface NewTabOption {
     disabled?: boolean;
     /** Leading icon (Menu row). */
     icon?: ReactNode;
+    /** One-line description shown under the label on the empty-state card.
+     *  Optional — cards without it just show the label. */
+    description?: string;
 }
 /** Drag payload for tab moves (HTML5 DnD dataTransfer). */
 export declare const TAB_DRAG_TYPE = "application/x-dsh-tab";
@@ -29,8 +36,10 @@ export declare function TabBar(props: {
     active: string | null;
     onActivate: (tabId: string) => void;
     onClose: (tabId: string) => void;
-    onNewTab: (optionId: string) => void;
-    newTabOptions: NewTabOption[];
+    /** The "+" button's action: split this pane and open a fresh empty pane
+     *  showing the empty-state card grid. Replaces the old dropdown menu —
+     *  the "+" always opens a new page, never a pick-list. */
+    onNewPane: () => void;
     /** Drop of a tab from any pane: (payload, insertBeforeTabId | null). */
     onDropTab: (payload: TabDragPayload, before: string | null) => void;
     /** Icon resolver for tab labels (reads from the tab descriptor registry). */

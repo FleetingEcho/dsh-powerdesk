@@ -1,14 +1,18 @@
 /**
  * The tab strip of one pane: tabs capped at TAB_MAX_WIDTH (ellipsized),
  * overflow scrolls horizontally, a close button per tab, a four-way split
- * button cluster, and the + menu that opens new tabs (explorer / git /
- * terminal). Tabs are draggable; dropping onto another tab inserts before it,
- * dropping on the strip background appends to this pane.
+ * button cluster, and the + button. Clicking + opens a NEW pane (a fresh
+ * split of this pane) showing the empty-state card grid (explorer / notes /
+ * terminal / browser); the user picks a card to open that tab type there.
+ * There is NO dropdown menu — the user asked to remove it: "+" should
+ * ALWAYS open a new page showing the cards, never a pick-list. Tabs are
+ * draggable; dropping onto another tab inserts before it, dropping on the
+ * strip background appends to this pane.
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import clsx from 'clsx'
 import {
-  IconCloseFill14, IconPlusOutline16, Menu,
+  IconCloseFill14, IconPlusOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SidebarTab } from './state.ts'
 import { t } from './locales.ts'
@@ -21,6 +25,9 @@ export interface NewTabOption {
   disabled?: boolean
   /** Leading icon (Menu row). */
   icon?: ReactNode
+  /** One-line description shown under the label on the empty-state card.
+   *  Optional — cards without it just show the label. */
+  description?: string
 }
 
 /** Drag payload for tab moves (HTML5 DnD dataTransfer). */
@@ -57,8 +64,10 @@ export function TabBar(props: {
   active: string | null
   onActivate: (tabId: string) => void
   onClose: (tabId: string) => void
-  onNewTab: (optionId: string) => void
-  newTabOptions: NewTabOption[]
+  /** The "+" button's action: split this pane and open a fresh empty pane
+   *  showing the empty-state card grid. Replaces the old dropdown menu —
+   *  the "+" always opens a new page, never a pick-list. */
+  onNewPane: () => void
   /** Drop of a tab from any pane: (payload, insertBeforeTabId | null). */
   onDropTab: (payload: TabDragPayload, before: string | null) => void
   /** Icon resolver for tab labels (reads from the tab descriptor registry). */
@@ -68,9 +77,8 @@ export function TabBar(props: {
   getTabBadge?: (tab: SidebarTab) => ReactNode
 }) {
   const {
-    paneId, tabs, active, onActivate, onClose, onNewTab, newTabOptions, onDropTab, getTabIcon, getTabBadge,
+    paneId, tabs, active, onActivate, onClose, onNewPane, onDropTab, getTabIcon, getTabBadge,
   } = props
-  const [menuOpen, setMenuOpen] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
 
@@ -178,41 +186,23 @@ export function TabBar(props: {
         {/*
           The + sits immediately after the rightmost tab (sticky at the
           right edge of the scrollport when the tabs overflow, so it stays
-          reachable no matter how many tabs are open). Hidden when there is
-          nothing to offer (empty newTabOptions) — SplitPane.tsx passes an
-          empty array for a pane that holds only file-open tabs (editor),
-          since those only ever come from clicking a file in Explorer, never
-          from a "new tab" menu.
+          reachable no matter how many tabs are open). It ALWAYS opens a
+          NEW pane — a fresh split of this pane showing the empty-state card
+          grid (explorer / notes / terminal / browser); the user then picks
+          a card to open that tab type in the new pane. There is NO dropdown:
+          the user asked "+" to always open a new page, never a pick-list.
+          The empty-state cards themselves live in SplitPane.tsx (not the
+          tab strip), so this button is intentionally simple: one action.
         */}
-        {newTabOptions.length > 0 && (
-        <Menu
-          open={menuOpen}
-          onClose={() => { setMenuOpen(false) }}
-          items={newTabOptions.map(option => ({
-            id: option.id,
-            label: option.label,
-            ...(option.disabled === true ? { disabled: true } : {}),
-            ...(option.icon !== undefined ? { icon: option.icon } : {}),
-          }))}
-          onSelect={(id) => {
-            onNewTab(id)
-            setMenuOpen(false)
-          }}
-          portal
-          align="end"
-          anchor={(
-            <button
-              type="button"
-              className={css.tabBarPlus}
-              aria-label={t('newTab')}
-              title={t('newTab')}
-              onClick={() => { setMenuOpen(v => !v) }}
-            >
-              <IconPlusOutline16 />
-            </button>
-          )}
-        />
-        )}
+        <button
+          type="button"
+          className={css.tabBarPlus}
+          aria-label={t('newPane')}
+          title={t('newPane')}
+          onClick={() => { onNewPane() }}
+        >
+          <IconPlusOutline16 />
+        </button>
       </div>
     </div>
   )

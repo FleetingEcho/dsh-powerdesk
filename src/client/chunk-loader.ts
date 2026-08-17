@@ -41,7 +41,17 @@
  * in-memory cache, so a hot-reloaded core bundle re-fetches and re-executes
  * the current chunk script on the next lazy open.
  */
-export type ChunkName = 'terminal' | 'browser' | 'editor'
+/** The chunks built into this plugin's own bundle. */
+export type BuiltinChunkName = 'terminal' | 'browser' | 'editor'
+
+/**
+ * A loadable chunk: a built-in name, or `ext:<id>` for a user-installed
+ * extension. The `ext:` prefix is what keeps a third-party bundle from
+ * claiming a built-in slot — the registry key, the URL, and the tab id all
+ * carry it, so an extension called `terminal` is `ext:terminal` everywhere
+ * and never collides with the real terminal chunk.
+ */
+export type ChunkName = BuiltinChunkName | `ext:${string}`
 
 /** The module exports a chunk factory provides (namespace-ish record). */
 export type ChunkExports = Record<string, unknown>
@@ -69,8 +79,17 @@ export const CHUNK_EXTERNALS: readonly string[] = [
   '@deepseek-ai/dsh-client-runtime/client',
 ]
 
-/** Chunk script endpoint served by the plugin host half (src/bundle-route.ts). */
-const CHUNK_URL = (name: ChunkName): string => `/powerdesk/bundle/${name}.js`
+/**
+ * Chunk script endpoint served by the plugin host half (src/bundle-route.ts).
+ * Extensions live under a separate `/ext/` path segment so the host can apply
+ * a different (config-gated, manifest-resolved) lookup to them without the
+ * two families ever sharing a name space.
+ */
+const CHUNK_URL = (name: ChunkName): string => (
+  name.startsWith('ext:')
+    ? `/powerdesk/bundle/ext/${name.slice('ext:'.length)}.js`
+    : `/powerdesk/bundle/${name}.js`
+)
 
 /** The plugin-owned global registry the chunk scripts assign to. */
 interface DshChunksRegistry { [name: string]: ChunkFactory | undefined }
@@ -194,6 +213,17 @@ export function loadChunk(name: ChunkName): Promise<ChunkExports> {
   cache.set(name, task)
   void task.catch(() => { cache.delete(name) })
   return task
+}
+
+/**
+ * Forget one chunk so the next open re-fetches and re-executes it. Used when
+ * an extension is reinstalled: the bundle route revalidates by ETag, so the
+ * changed script is re-downloaded, and re-execution overwrites the registry
+ * slot with the new factory. Without this the memoized promise would keep
+ * serving the previous install's exports for the life of the page.
+ */
+export function dropChunk(name: ChunkName): void {
+  cache.delete(name)
 }
 
 /**

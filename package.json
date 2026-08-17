@@ -45,19 +45,15 @@
     }
   },
   "files": [
-    "lib/index.js",
-    "lib/bundle-route.js",
-    "lib/client.js",
-    "lib/client-registry.js",
-    "lib/client-terminal.js",
-    "lib/client-browser.js",
-    "lib/client-editor.js",
+    "lib/*.js",
     "lib/types/**/*.d.ts",
     "src",
     "prebuilt",
     "scripts/install.sh",
     "scripts/install.ps1",
     "scripts/build-rust.sh",
+    "scripts/pack-extension.mjs",
+    "templates/extension/**",
     "cordis.patch.yml",
     "README.md",
     "LICENSE"
@@ -65,12 +61,14 @@
   "scripts": {
     "build": "rm -rf lib && tsc -p tsconfig.build.json && tsdown",
     "prepublishOnly": "pnpm build",
+    "prepack": "pnpm build",
     "typecheck": "tsc --noEmit",
     "bundle": "tsdown",
     "watch": "tsdown --watch",
     "test": "vitest run",
     "test:watch": "vitest",
-    "build:rust": "bash scripts/build-rust.sh"
+    "build:rust": "bash scripts/build-rust.sh",
+    "pack-extension": "node scripts/pack-extension.mjs"
   },
   "license": "MIT",
   "peerDependencies": {
@@ -103,6 +101,8 @@
     "@codemirror/state": "^6.5.2",
     "@codemirror/view": "^6.38.6",
     "@lezer/highlight": "^1.2.3",
+    "@radix-ui/react-label": "^2.1.15",
+    "@radix-ui/react-select": "^2.3.7",
     "clsx": "^2.1.1",
     "codemirror": "^6.0.2",
     "lucide-react": "^1.31.0",

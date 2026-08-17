@@ -24,4 +24,16 @@ export interface FileExplorerProps {
     onToggleDir: (path: string) => void;
     onOpenFile: (path: string) => void;
 }
+/** `path` relative to `root` (falls back to the absolute path when `path`
+ *  isn't actually under `root` — should not happen, the tree only ever
+ *  descends from `root`). Exported for testing. */
+export declare function relativeTo(root: string, path: string): string;
+/**
+ * The relative-path reference copied by the `@` button. Always prefixed with
+ * `@` (the user's `@file` mention convention) — clicking the `@` icon on
+ * `package.json` copies `@package.json`, on `src/index.ts` copies
+ * `@src/index.ts`. The `@` is part of the copied text, not just the icon.
+ * Exported for testing.
+ */
+export declare function atReference(root: string, path: string): string;
 export declare function FileExplorer(props: FileExplorerProps): ReactNode;

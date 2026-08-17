@@ -16,6 +16,9 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import clsx from 'clsx'
 import type { PowerdeskSidebarService, TabDescriptor } from './service.ts'
+import type { ExtensionHost } from './extensions.ts'
+import { ExtensionsPanel } from './ExtensionsPanel.tsx'
+import { TerminalAppearancePanel } from './TerminalAppearancePanel.tsx'
 import { t } from './locales.ts'
 import css from './sidebar.module.css'
 
@@ -24,9 +27,11 @@ export interface SettingsSectionOwnerProps {
   close: () => void
 }
 
-/** The injected face: the optional sidebar registry service. */
+/** The injected face: the optional sidebar registry service, plus the
+ *  extension host whose tab registrations the Extensions block drives. */
 export interface SettingsSectionInjected {
   sidebar: PowerdeskSidebarService | undefined
+  extensions?: ExtensionHost | undefined
 }
 
 /** Full section props: the shell owner share + the injected face. */
@@ -103,7 +108,7 @@ function TabCard(props: {
  * @param props - the shell owner share (`close`) + injected `sidebar` face.
  * @returns the section element tree.
  */
-export function SettingsSection({ close, sidebar }: SettingsSectionProps): ReactNode {
+export function SettingsSection({ close, sidebar, extensions }: SettingsSectionProps): ReactNode {
   const [hint, setHint] = useState<string | null>(null)
   // Re-render on tab (de)registration or an enable-toggle (both call
   // service.subscribe's notify()) so the grid and the toggle states stay live.
@@ -124,6 +129,14 @@ export function SettingsSection({ close, sidebar }: SettingsSectionProps): React
         <p className={css.settingsMissing}>{t('settingsSidebarMissing')}</p>
       )}
       {hint !== null && <p className={css.settingsHint}>{hint}</p>}
+      {/* Terminal appearance (font family/weight/size/theme + PTY backend).
+          Lives here, not on the terminal page, so every terminal shares one
+          appearance and the tab surface stays focused on output. */}
+      <TerminalAppearancePanel />
+      {/* Extension tabs appear in the grid above like any other tab type
+          (with the same enable/disable switch); this block is only about
+          getting them onto disk and back off again. */}
+      <ExtensionsPanel extensions={extensions} />
     </div>
   )
 }

@@ -19,7 +19,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $PKG = 'dsh-powerdesk'
-$PREBUILT_BASE = if ($env:PREBUILT_BASE) { $env:PREBUILT_BASE } else { 'https://github.com/omdsh-dev/dsh-powerdesk/releases/download' }
+$PREBUILT_BASE = if ($env:PREBUILT_BASE) { $env:PREBUILT_BASE } else { 'https://github.com/FleetingEcho/dsh-powerdesk/releases/download' }
 
 function Detect-Triple {
   if ($env:DSH_POWERDESK_PTY_TRIPLE) { return $env:DSH_POWERDESK_PTY_TRIPLE }

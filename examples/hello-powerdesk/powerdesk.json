@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1,
+  "id": "hello-powerdesk",
+  "title": "Hello Powerdesk",
+  "icon": "👋",
+  "entry": "bundle.js",
+  "export": "default",
+  "order": 300,
+  "single": true
+}

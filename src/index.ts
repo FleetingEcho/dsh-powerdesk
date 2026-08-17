@@ -26,7 +26,10 @@ import { WebSocket, WebSocketServer } from 'ws'
 import type { Context, ResttyHttpRequest } from './context-types.ts'
 import { Config, resolveResttyConfig, type ResolvedResttyConfig, type ResttyConfig } from './config.ts'
 import { isTrustedApiRequest, isLoopbackHostname } from './trust-fence.ts'
-import { registerBundleRoute } from './bundle-route.ts'
+import { registerBundleRoute, type ExtensionBundleSource } from './bundle-route.ts'
+import { ExtensionError } from './extensions/manifest.ts'
+import { listExtensions, removeExtension, resolveExtensionsDir } from './extensions/registry.ts'
+import { MAX_UPLOAD_BYTES, installExtension } from './extensions/install.ts'
 import { defaultShell } from './shell.ts'
 import { RustPtyManager } from './rust-pty-manager.ts'
 import { handleClientMessage } from './pty-wire.ts'
@@ -37,7 +40,7 @@ import {
   depsStatus,
   loadRustPty,
 } from './rust-pty-deps.ts'
-import { readJsonBody, requireString, ResttyError, writeError, writeJson, writeOk } from './wire.ts'
+import { MAX_BODY_BYTES, readJsonBody, requireString, ResttyError, writeError, writeJson, writeOk } from './wire.ts'
 
 export { Config }
 export type { ResttyConfig, ResolvedResttyConfig } from './config.ts'
@@ -75,8 +78,32 @@ function sessionCwdOf(ctx: Context, sessionId: string, clientCwd?: string): stri
   return process.cwd()
 }
 
+/**
+ * Per-method request-body bound. Only the extension upload needs more than
+ * the default: a 16 MiB archive is ~21 MiB once base64-encoded, plus the JSON
+ * envelope. Every other method keeps the tight default.
+ */
+export function bodyLimitFor(method: string): number {
+  return method === 'ext.install' ? Math.ceil(MAX_UPLOAD_BYTES * 4 / 3) + (1 << 16) : MAX_BODY_BYTES
+}
+
+/** Translate an extension-layer rejection into the API's error envelope. */
+function asResttyError(error: unknown): unknown {
+  return error instanceof ExtensionError ? new ResttyError('bad-request', error.message, 400) : error
+}
+
 /** Build the JSON API method table bound to the plugin context + pty manager. */
-function buildApi(ctx: Context, ptyManager: RustPtyManager | null): Record<string, (payload: unknown) => unknown> {
+function buildApi(
+  ctx: Context,
+  ptyManager: RustPtyManager | null,
+  extensions: ExtensionBundleSource,
+): Record<string, (payload: unknown) => unknown> {
+  /** Refuse extension mutations while the feature is off in config. */
+  const requireExtensionsEnabled = (): void => {
+    if (!extensions.enabled) {
+      throw new ResttyError('forbidden', 'extensions are disabled; set extensionsEnabled in the dsh-powerdesk plugin config', 403)
+    }
+  }
   const cwdOf = (payload: unknown): { sessionId: string; cwd: string } => {
     const sessionId = requireString(payload, 'sessionId')
     const record = payload as { cwd?: unknown } | null
@@ -175,6 +202,57 @@ function buildApi(ctx: Context, ptyManager: RustPtyManager | null): Record<strin
     'fs.listMarkdownTree': (payload) => fsListMarkdownTree(requireString(payload, 'path')),
     // The folder-picker modal's starting point.
     'fs.home': () => fsHome(),
+    // ── User-installed extensions ─────────────────────────────────────────
+    // `ext.list` answers even while the feature is disabled, so the settings
+    // card can explain WHY nothing loads instead of rendering an empty list.
+    'ext.list': async () => ({
+      enabled: extensions.enabled,
+      dir: extensions.dir,
+      extensions: extensions.enabled ? await listExtensions(extensions.dir) : [],
+    }),
+    // Install an uploaded archive. The bytes arrive base64-encoded inside the
+    // JSON envelope (the API gateway is JSON-only); `filename` is provenance
+    // for the settings card and never drives the decode — see install.ts.
+    'ext.install': async (payload) => {
+      requireExtensionsEnabled()
+      const filename = requireString(payload, 'filename')
+      const record = payload as { dataBase64?: unknown; id?: unknown; title?: unknown; icon?: unknown }
+      if (typeof record.dataBase64 !== 'string' || record.dataBase64 === '') {
+        throw new ResttyError('bad-request', 'missing or invalid "dataBase64"')
+      }
+      const data = new Uint8Array(Buffer.from(record.dataBase64, 'base64'))
+      if (data.length === 0) {
+        throw new ResttyError('bad-request', '"dataBase64" did not decode to any bytes')
+      }
+      // Identity supplied by the upload dialog; only consulted when the
+      // payload turns out to be a bare script with no manifest of its own.
+      const fallback = typeof record.id === 'string' && typeof record.title === 'string'
+        ? {
+            id: record.id,
+            title: record.title,
+            ...typeof record.icon === 'string' && record.icon !== '' ? { icon: record.icon } : {},
+          }
+        : undefined
+      try {
+        return await installExtension(extensions.dir, {
+          filename,
+          data,
+          ...fallback !== undefined ? { fallback } : {},
+        })
+      } catch (error) {
+        throw asResttyError(error)
+      }
+    },
+    'ext.remove': async (payload) => {
+      requireExtensionsEnabled()
+      const id = requireString(payload, 'id')
+      try {
+        await removeExtension(extensions.dir, id)
+      } catch (error) {
+        throw asResttyError(error)
+      }
+      return { ok: true }
+    },
   }
 }
 
@@ -207,8 +285,20 @@ export function apply(ctx: Context, config?: ResttyConfig): void {
     ? new RustPtyManager(terminalShell, resolved.terminalsPerSession, nativeModule)
     : null
 
+  // User-installed extensions run in the DSH page's own origin with the same
+  // privileges as this plugin, so the feature is off unless the deployment
+  // opts in. Resolved once here and shared by the API and the bundle route so
+  // the two can never disagree about which directory is authoritative.
+  const extensions: ExtensionBundleSource = {
+    enabled: resolved.extensionsEnabled,
+    dir: resolveExtensionsDir(resolved.extensionsDir),
+  }
+  if (extensions.enabled) {
+    console.warn(`[dsh-powerdesk] user extensions ENABLED; loading from ${extensions.dir}. Extensions run with full page privileges.`)
+  }
+
   // ── JSON API ────────────────────────────────────────────────────────────
-  const api = buildApi(ctx, ptyManager)
+  const api = buildApi(ctx, ptyManager, extensions)
   ctx.effect(() => ctx.webServer.register({
     kind: 'prefix',
     path: '/powerdesk/api',
@@ -228,7 +318,7 @@ export function apply(ctx: Context, config?: ResttyConfig): void {
         return
       }
       try {
-        const payload = await readJsonBody(req)
+        const payload = await readJsonBody(req, bodyLimitFor(method))
         const handler = api[method]
         if (handler === undefined) {
           throw new ResttyError('not-found', `unknown restty API method "${method}"`, 404)
@@ -241,7 +331,7 @@ export function apply(ctx: Context, config?: ResttyConfig): void {
   }), 'dsh-powerdesk: /powerdesk/api routes')
 
   // ── Lazy chunk route (client bundle splits) ─────────────────────────────
-  ctx.effect(() => registerBundleRoute(ctx, fence), 'dsh-powerdesk: /powerdesk/bundle chunk route')
+  ctx.effect(() => registerBundleRoute(ctx, fence, extensions), 'dsh-powerdesk: /powerdesk/bundle chunk route')
 
   // ── Terminal WebSocket (restty native wire protocol) ────────────────────
   // One upgrade endpoint serves UI-tab terminals (?tab=...&sessionId=...&cwd=...).

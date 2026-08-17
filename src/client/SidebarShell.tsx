@@ -98,29 +98,45 @@ export function SidebarShell(props: { ctx: Context; store: SidebarStore; service
   const [draggingHeight, setDraggingHeight] = useState(false)
   const bottomOpen = state?.bottomOpen === true
 
-  // Push the host app's own content instead of floating the panels over it:
-  // reserve the right panel's width as a right margin and the bottom
-  // panel's height as a bottom margin on the host SPA's bootstrap mount
-  // point. Both panels still render via `position: fixed` (a body-level
-  // portal — see mountSidebarShell), so these margins are what make them
-  // read as "docked" rather than overlaid: the host's own layout (a CSS
-  // grid whose center column is `minmax(0, 1fr)`) reflows to fill whatever
-  // space `#root` has left. `#root` is the SPA's bootstrap convention,
-  // independent of the host's own (hashed) CSS-module classes — deliberately
-  // NOT reaching into those for this push, which could change on any host
-  // rebuild. No transition while dragging (matches `.panel[data-dragging]`
-  // / `.bottomPanel[data-dragging]`), so the push tracks the cursor exactly.
+  // Push the host app's own content instead of floating the panels over it,
+  // so the panels read as "docked" rather than overlaid. The two axes need
+  // DIFFERENT push mechanisms because of how `#root` is sized:
+  //
+  //  - RIGHT panel → `margin-right`: `#root` is a block element, so a right
+  //    margin shrinks its content width (blocks consume margin from their
+  //    available width). The host's CSS grid center column (`minmax(0, 1fr)`)
+  //    reflows narrower; the sidebar docks on the right.
+  //
+  //  - BOTTOM panel → `height: calc(100% - H)`, NOT margin-bottom: the DSH
+  //    shell sets `html, body, #root { height: 100% }`, so `#root`'s height is
+  //    EXPLICITLY 100% of the viewport. `margin-bottom` on a height:100%
+  //    element does NOT shrink its content box — it only adds overflow space
+  //    below, leaving the chat input pinned to the viewport bottom and
+  //    covered by the fixed bottom panel (the "can't see the chat box" bug).
+  //    Reducing `#root`'s height instead shrinks the content box, the grid
+  //    reflows shorter, and the chat input moves up above the panel.
+  //
+  // Both panels still render via `position: fixed` (a body-level portal —
+  // see mountSidebarShell); these pushes are what dock them. `#root` is the
+  // SPA's bootstrap convention, independent of the host's own (hashed)
+  // CSS-module classes — deliberately NOT reaching into those for this
+  // push, which could change on any host rebuild. No transition while
+  // dragging (matches `.panel[data-dragging]` / `.bottomPanel[data-dragging]`),
+  // so the push tracks the cursor exactly.
   useEffect(() => {
     const hostRoot = document.getElementById('root')
     if (hostRoot === null) return
     hostRoot.style.transition = (draggingWidth || draggingHeight)
       ? 'none'
-      : 'margin-right var(--ds-transition-duration-slow) var(--ds-ease-in-out), margin-bottom var(--ds-transition-duration-slow) var(--ds-ease-in-out)'
+      : 'margin-right var(--ds-transition-duration-slow) var(--ds-ease-in-out), height var(--ds-transition-duration-slow) var(--ds-ease-in-out)'
     hostRoot.style.marginRight = collapsed ? '0px' : `${String(state?.width ?? 0)}px`
-    hostRoot.style.marginBottom = bottomOpen ? `${String(state?.bottomHeight ?? 0)}px` : '0px'
+    // Reserve the bottom panel's height by shrinking #root's height (not a
+    // bottom margin — see the note above). '' restores the shell's
+    // `height: 100%` when the panel is collapsed.
+    hostRoot.style.height = bottomOpen ? `calc(100% - ${String(state?.bottomHeight ?? 0)}px)` : ''
     return () => {
       hostRoot.style.marginRight = ''
-      hostRoot.style.marginBottom = ''
+      hostRoot.style.height = ''
       hostRoot.style.transition = ''
     }
   }, [collapsed, state?.width, bottomOpen, state?.bottomHeight, draggingWidth, draggingHeight])
@@ -181,6 +197,18 @@ export function SidebarShell(props: { ctx: Context; store: SidebarStore; service
     // state is defined iff a session is active (the store sets state=undefined
     // when no session is selected), so sessionId is non-undefined here.
     const scope = { sessionId: snapshot.sessionId! }
+    // Per-tab one-line descriptions for the empty-state "new page" cards.
+    // Keyed by the stable tab id literal each descriptor carries (terminal
+    // = 'dsh-powerdesk:terminal', explorer = 'dsh-powerdesk:explorer',
+    // notes = 'dsh-powerdesk:notes', browser = 'dsh-powerdesk:browser').
+    // Unknown tabs (e.g. an extension tab) get no description — the card
+    // just shows its label.
+    const descriptions: Record<string, string> = {
+      'dsh-powerdesk:terminal': t('cardTerminalDesc'),
+      'dsh-powerdesk:explorer': t('cardExplorerDesc'),
+      'dsh-powerdesk:notes': t('cardNotesDesc'),
+      'dsh-powerdesk:browser': t('cardBrowserDesc'),
+    }
     return service.getTabs()
       .filter(descriptor => descriptor.hidden !== true && service.isTabEnabled(descriptor.id))
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
@@ -189,6 +217,7 @@ export function SidebarShell(props: { ctx: Context; store: SidebarStore; service
         label: typeof descriptor.title === 'function' ? descriptor.title() : descriptor.title,
         disabled: descriptor.available?.(ctx, scope, state) === false,
         icon: typeof descriptor.icon === 'function' ? descriptor.icon(16) : descriptor.icon,
+        description: descriptions[descriptor.id],
       }))
   }, [service, state, ctx, snapshot.sessionId])
 
@@ -273,27 +302,34 @@ export function SidebarShell(props: { ctx: Context; store: SidebarStore; service
             panelOpen={state.panelOpen}
             newTabOptions={newTabOptions}
             onNewTab={onNewTab}
+            defaultSplitDir="col"
           />
         </div>
       </div>
       )}
 
       {/* The bottom panel: an independent workbench spanning from the host's
-          center column (see the left-inset effect above) to the viewport's
-          right edge — INCLUDING under the right panel when both are open
-          (the right panel's higher z-index stacks it on top; see
-          sidebar.module.css). Squeezes the host's chat height, not its
-          width. A tab dragged to a pane's top/bottom edge (see
-          SplitPane.tsx's drag-to-edge zoning) can land here even though
-          it's a SEPARATE split tree (`state.bottomSplits`) from the right
-          panel's (`state.splits`) — `moveTabToEdge` already handles
-          cross-tree drops (both trees live in the one `SidebarState` the
-          same `store.reduce` operates over). */}
+          center column (see the left-inset effect above) to the RIGHT PANEL's
+          left edge when the right panel is open — NOT the viewport's right
+          edge. Earlier the bottom panel ran the full window width and slid
+          UNDER the right panel (the right panel's higher z-index stacked it
+          on top), so its usable width read as 100% and ignored the right
+          panel taking space. The user wanted the bottom panel to SHRINK when
+          the right panel is open. We set `right` inline to the right panel's
+          width (0 when the right panel is collapsed) so the bottom panel's
+          right edge stops at the right panel's left edge; `left` is still
+          pinned to the host's center column by the ResizeObserver effect
+          above. Squeezes the host's chat height, not its width. A tab
+          dragged to a pane's top/bottom edge (see SplitPane.tsx's
+          drag-to-edge zoning) can land here even though it's a SEPARATE split
+          tree (`state.bottomSplits`) from the right panel's (`state.splits`)
+          — `moveTabToEdge` already handles cross-tree drops (both trees live
+          in the one `SidebarState` the same `store.reduce` operates over). */}
       {state !== undefined && (
       <div
         ref={bottomPanelRef}
         className={clsx(css.bottomPanel, !bottomOpen && css.bottomPanelHidden)}
-        style={{ height: state.bottomHeight }}
+        style={{ height: state.bottomHeight, right: collapsed ? 0 : state.width }}
         data-dragging={draggingHeight || undefined}
       >
         <div
@@ -335,6 +371,7 @@ export function SidebarShell(props: { ctx: Context; store: SidebarStore; service
             panelOpen={bottomOpen}
             newTabOptions={newTabOptions}
             onNewTab={onNewTab}
+            defaultSplitDir="row"
           />
         </div>
       </div>

@@ -28,7 +28,7 @@ export class ResttyError extends Error {
 }
 
 /** Body size bound of one JSON request (defense against unbounded reads). */
-const MAX_BODY_BYTES = 1 << 20
+export const MAX_BODY_BYTES = 1 << 20
 
 /** Success envelope of one API method. */
 export interface ResttyOk<T> { ok: true; value: T }
@@ -36,8 +36,15 @@ export interface ResttyOk<T> { ok: true; value: T }
 /** Failure envelope of one API method. */
 export interface ResttyErr { ok: false; error: { code: ResttyErrorCode; message: string } }
 
-/** Read and parse the JSON request body (bounded; malformed → bad-request). */
-export async function readJsonBody(req: ResttyHttpRequest): Promise<unknown> {
+/**
+ * Read and parse the JSON request body (bounded; malformed → bad-request).
+ *
+ * @param maxBytes - per-request bound. Defaults to {@link MAX_BODY_BYTES};
+ * the extension-upload method raises it, since a base64 archive legitimately
+ * exceeds the limit every other method needs. Passing the bound per call
+ * keeps the default tight instead of widening it for the whole route.
+ */
+export async function readJsonBody(req: ResttyHttpRequest, maxBytes: number = MAX_BODY_BYTES): Promise<unknown> {
   const chunks: Buffer[] = []
   let total = 0
   for await (const chunk of req) {
@@ -45,7 +52,7 @@ export async function readJsonBody(req: ResttyHttpRequest): Promise<unknown> {
     // both (and the real runtime chunks are node Buffers anyway).
     const buffer = Buffer.from(chunk)
     total += buffer.length
-    if (total > MAX_BODY_BYTES) {
+    if (total > maxBytes) {
       throw new ResttyError('bad-request', 'request body too large')
     }
     chunks.push(buffer)

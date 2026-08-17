@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1,
+  "id": "my-extension",
+  "title": "My Extension",
+  "icon": "🧩",
+  "entry": "bundle.js",
+  "export": "default",
+  "order": 200,
+  "single": true
+}

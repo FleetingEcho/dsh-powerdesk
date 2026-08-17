@@ -81,7 +81,7 @@ detect_triple() {
 }
 
 TRIPLE="$(detect_triple)"
-PREBUILT_BASE="${PREBUILT_BASE:-https://github.com/omdsh-dev/dsh-powerdesk/releases/download}"
+PREBUILT_BASE="${PREBUILT_BASE:-https://github.com/FleetingEcho/dsh-powerdesk/releases/download}"
 
 # 解析 "latest" → 最新版本的 tag 形如 v0.1.0；显式版本直接用作 tag 前缀。
 resolve_tag() {

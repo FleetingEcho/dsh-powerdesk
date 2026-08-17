@@ -15,13 +15,16 @@
  */
 import { type ReactNode } from 'react';
 import type { PowerdeskSidebarService } from './service.ts';
+import type { ExtensionHost } from './extensions.ts';
 /** The shell-supplied owner props (SettingsSectionOwnerProps: `close`). */
 export interface SettingsSectionOwnerProps {
     close: () => void;
 }
-/** The injected face: the optional sidebar registry service. */
+/** The injected face: the optional sidebar registry service, plus the
+ *  extension host whose tab registrations the Extensions block drives. */
 export interface SettingsSectionInjected {
     sidebar: PowerdeskSidebarService | undefined;
+    extensions?: ExtensionHost | undefined;
 }
 /** Full section props: the shell owner share + the injected face. */
 export type SettingsSectionProps = SettingsSectionOwnerProps & SettingsSectionInjected;
@@ -30,4 +33,4 @@ export type SettingsSectionProps = SettingsSectionOwnerProps & SettingsSectionIn
  * @param props - the shell owner share (`close`) + injected `sidebar` face.
  * @returns the section element tree.
  */
-export declare function SettingsSection({ close, sidebar }: SettingsSectionProps): ReactNode;
+export declare function SettingsSection({ close, sidebar, extensions }: SettingsSectionProps): ReactNode;

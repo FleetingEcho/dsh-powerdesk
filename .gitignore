@@ -17,3 +17,13 @@ lib/**/*.map
 
 # pnpm content-addressable store (sandbox artifact, not source)
 .pnpm-store/
+
+# Extension e2e test scratch (tests/extension-e2e.spec.ts builds the template here)
+.demo-extension/
+# Built output if an author builds the template in place
+templates/extension/dist/
+templates/extension/node_modules/
+templates/extension/*.tgz
+
+# codegraph index (local only)
+.codegraph/

@@ -138,6 +138,55 @@ export declare function tabOpenIn(state: SidebarState, tabId: string): boolean;
 /** Replace a leaf with a split of it plus a fresh empty leaf. */
 export declare function splitLeafAt(node: SplitNode, paneId: string, dir: 'row' | 'col'): SplitNode;
 /**
+ * The "+" button's "open a new page" action: split the leaf that owns
+ * `paneId` (in whichever tree — right panel `splits` or bottom panel
+ * `bottomSplits`, resolved via {@link treeOf}) and activate the fresh empty
+ * leaf it creates. The fresh leaf is empty, so it renders the empty-state
+ * card grid (explorer / notes / terminal / browser) — the user then picks a
+ * card to open that tab type in the new pane. This replaces the old "+"
+ * dropdown menu: the "+" always opens a new pane showing the cards.
+ *
+ * `dir` is the split direction: 'col' (stack) for the narrow right sidebar,
+ * 'row' (side-by-side) for the wide bottom panel — passed by the caller per
+ * panel so the new pane gets usable space.
+ * @returns the new state with the fresh leaf split in and activated.
+ */
+export declare function splitForNewPane(state: SidebarState, paneId: string, dir: 'row' | 'col'): SidebarState;
+/**
+ * Reorient the split that DIRECTLY contains `leafId` as a child: set its
+ * `dir` to `dir` (row ↔ col) so the leaf moves from beside its sibling to
+ * below it (or vice versa). Sizes are preserved — only the layout axis
+ * changes, so a pane the user resized keeps its proportion after a flip.
+ *
+ * This is the empty-state card page's horizontal/vertical radio: the "+"
+ * button splits the pane in the panel's default direction (col for the
+ * narrow right sidebar → the new pane lands below; row for the wide
+ * bottom panel → side-by-side), then the radio lets the user reorient that
+ * split so the new pane lands where they actually want it BEFORE picking a
+ * card. No-op (returns the same state reference) when `leafId` is the root
+ * (no parent split — e.g. the sole pane of a panel after every tab was
+ * closed) or when the split already has the requested direction.
+ */
+export declare function reorientSplit(state: SidebarState, leafId: string, dir: 'row' | 'col'): SidebarState;
+/**
+ * Close (dismiss) an empty pane created by the "+" button's split, undoing
+ * the split: remove the leaf via {@link removeLeafAt} (which promotes its
+ * lone sibling when the parent split is left with one child, collapsing the
+ * split so the surviving pane reclaims the full width/height) and move the
+ * active focus to that surviving pane so the user is never left staring at
+ * a stale/disappeared pane id.
+ *
+ * Only meaningful when the leaf has a parent split (i.e. it was created by
+ * a split, not the tree root): the empty-state card page's close button is
+ * hidden for a root leaf (see SplitPane.tsx — same gate as the orientation
+ * radio), so this is never called on a root from the UI. As a guard, a root
+ * leaf (no sibling found) is a no-op: the welcome pane is not closeable —
+ * closing it would empty the panel's only pane for no benefit.
+ * @returns the new state, or the SAME state reference when the leaf is the
+ *          root (no parent to collapse) — so callers can skip persist/notify.
+ */
+export declare function closePane(state: SidebarState, paneId: string): SidebarState;
+/**
  * Split a leaf by inserting a fresh leaf holding `tab` beside it — the
  * VSCode drag-to-edge gesture. `dir` is the split direction ('row' for
  * left/right, 'col' for up/down); `front` places the new leaf first (left/

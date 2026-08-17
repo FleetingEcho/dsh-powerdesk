@@ -18,6 +18,18 @@ export interface ResttyConfig {
      * inbox `powershell.exe` (5.1).
      */
     shell?: string;
+    /**
+     * Enable user-installed extensions (third-party React components mounted as
+     * sidebar tabs). Default OFF, and deliberately so: an extension runs in the
+     * DSH page's own origin with full DOM, fetch, and session access — the same
+     * privileges as this plugin. There is no sandbox, so switching this on is a
+     * statement that the operator trusts whatever the user installs.
+     */
+    extensionsEnabled?: boolean;
+    /**
+     * Where installed extensions live. Empty = `~/.dsh/powerdesk/extensions`.
+     */
+    extensionsDir?: string;
 }
 /** Schemastery schema for the plugin configuration. */
 export declare const Config: z<ResttyConfig>;
@@ -26,6 +38,8 @@ export interface ResolvedResttyConfig {
     terminalsPerSession: number;
     reconnectGraceMs: number;
     shell: string;
+    extensionsEnabled: boolean;
+    extensionsDir: string;
 }
 /**
  * Apply direct-call defaults after Loader schema validation has normally run.

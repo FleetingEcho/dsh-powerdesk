@@ -20,7 +20,8 @@ import { parseGhosttyColor } from 'restty/internal'
 import { api, resttyWsUrl, sidebarWsUrl, type SessionScope, type TerminalDepsStatus } from './api.ts'
 import { createResttyTransport, type ResttyTransportListeners } from './restty-transport.ts'
 import { createSidebarAdapterTransport } from './adapter-transport.ts'
-import { resolveTerminalFont } from './terminal-font.ts'
+import { resolveTerminalFont, resolveTerminalFontInputs } from './terminal-font.ts'
+import { resolveResttyThemeName } from './terminal-theme.ts'
 import { effectiveTokenValue, isDarkScheme, subscribeColorScheme, tokenValue } from './theme.ts'
 import { openWhenSized } from './open-when-sized.ts'
 import { t } from './locales.ts'
@@ -56,10 +57,13 @@ type Phase = 'loading' | 'connecting' | 'connected' | 'reconnecting' | 'fatal' |
  */
 function buildResttyTheme(prefs: ResttyPrefs): GhosttyTheme | undefined {
   const dark = isDarkScheme()
-  const preferred = prefs.themeName.trim() !== '' ? prefs.themeName.trim() : (dark ? 'Aizen Dark' : 'Aizen Light')
+  // `prefs.themeName` is a preset id ('auto', 'tokyo-night', …) or a raw restty
+  // builtin name (the "More…" path); resolveResttyThemeName maps it to a real
+  // builtin, falling back to the scheme default for 'auto'/''/unknown.
+  const preferred = resolveResttyThemeName(prefs.themeName, dark)
   let theme: GhosttyTheme | undefined
   try {
-    theme = getBuiltinTheme(preferred) ?? getBuiltinTheme('Aizen Dark') ?? undefined
+    theme = getBuiltinTheme(preferred) ?? getBuiltinTheme(dark ? 'Aizen Dark' : 'Aizen Light') ?? getBuiltinTheme('Aizen Dark') ?? undefined
   } catch {
     theme = undefined
   }
@@ -223,8 +227,25 @@ export function ResttyTerminal({ scope, tabId, prefs, visible = true }: ResttyTe
       try {
         restty = new Restty({
           root,
-          surface: { shortcuts: true, paneStyles: true, searchUi: true },
-          terminal: { renderer: 'auto', fontSize: font.fontSize, fonts: [{ family: font.fontFamily }], theme },
+          // `shortcuts: false` works around a restty 0.2.6 panic
+          // (`thread 'main' panicked at src/screen.rs:644:18: attempt to
+          // subtract with overflow`) that triggers in the SGR mouse-tracking
+          // path the shortcuts surface enables. restty 0.2.6 is the latest on
+          // npm and ships compiled WASM (the Rust source isn't patchable from
+          // this plugin), so disabling shortcuts is the safe workaround until
+          // an upstream fix lands. Cost: terminal keyboard shortcuts are off
+          // (pane search stays via searchUi; pane styles stay via paneStyles).
+          // Re-enable when restty > 0.2.6 fixes the overflow.
+          surface: { shortcuts: false, paneStyles: true, searchUi: true },
+          // `fonts` REPLACES restty's `DEFAULT_FONT_INPUTS` entirely (restty
+          // does not merge), so we must include the emoji/symbol/CJK fallback
+          // chain ourselves — otherwise only the primary family's glyphs are
+          // available and emoji (🍣), Nerd Font symbols, and CJK stop rendering.
+          // `resolveTerminalFontInputs` prepends the primary family (with a
+          // guaranteed JetBrains Mono URL fallback for browsers without the
+          // Local Font Access API) and appends restty's own default emoji/
+          // symbol/CJK sources. `weight` is honored by restty's family input.
+          terminal: { renderer: 'auto', fontSize: font.fontSize, fonts: resolveTerminalFontInputs(font.fontFamily, font.fontWeight), theme },
           services: { ptyTransport: transport },
         })
       } catch (error) {
@@ -266,20 +287,20 @@ export function ResttyTerminal({ scope, tabId, prefs, visible = true }: ResttyTe
       resttyRef.current = null
       cancelOpen()
     }
-    // Re-mount when the session, tab, or backend changes (font/theme changes
-    // are applied live without a remount where possible).
+    // Re-mount when the session, tab, or backend changes, OR when the font
+    // family/weight/size changes (restty has no live setter for those, so the
+    // terminal is recreated to pick up the new font). Theme changes are
+    // applied live without a remount by the effect below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scope.sessionId, scope.cwd, tabId, prefs.ptyBackend])
+  }, [scope.sessionId, scope.cwd, tabId, prefs.ptyBackend, prefs.fontFamily, prefs.fontWeight, prefs.fontSize])
 
-  // Live font/theme re-application when prefs change (no remount).
+  // Live theme re-application when the theme preset changes (no remount —
+  // restty exposes a live setTheme, unlike fontFamily/size).
   useEffect(() => {
     const restty = resttyRef.current
     if (restty === null) return
     applyResttyTheme(restty, buildResttyTheme(prefs))
-    // restty has no documented live fontFamily/fontSize setter in the public
-    // API; a font change takes effect on the next tab open. (Mirrors many
-    // terminal renderers.)
-  }, [prefs.fontFamily, prefs.fontSize, prefs.themeName])
+  }, [prefs.themeName])
 
   const retry = (): void => {
     if (phase === 'deps-fatal') {

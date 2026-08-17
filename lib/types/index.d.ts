@@ -10,6 +10,12 @@ export declare const name = "dsh-powerdesk";
  *  store, and the web runtime's trusted hosts. */
 export declare const inject: string[];
 /**
+ * Per-method request-body bound. Only the extension upload needs more than
+ * the default: a 16 MiB archive is ~21 MiB once base64-encoded, plus the JSON
+ * envelope. Every other method keeps the tight default.
+ */
+export declare function bodyLimitFor(method: string): number;
+/**
  * Plugin body: mount the fenced routes and the pty lifecycle.
  * @param ctx - host plugin context (webServer, sessions, webRuntime).
  * @param config - deployment-provided limits; the Loader validates against

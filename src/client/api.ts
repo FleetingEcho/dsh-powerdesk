@@ -58,6 +58,44 @@ export interface FsReadResult {
   truncated: boolean
 }
 
+/** One installed extension's manifest (mirror of the host's ExtensionManifest). */
+export interface ExtensionManifest {
+  apiVersion: number
+  id: string
+  title: string
+  icon?: string
+  entry: string
+  export: string
+  order?: number
+  single?: boolean
+}
+
+/** Install provenance the host records (mirror of the host's InstallRecord). */
+export interface ExtensionInstallRecord {
+  installedAt: string
+  sourceFilename: string
+  sha256: string
+  sourceBytes: number
+}
+
+/** One installed extension (mirror of the host's InstalledExtension). */
+export interface InstalledExtension {
+  id: string
+  manifest?: ExtensionManifest
+  install?: ExtensionInstallRecord
+  dir: string
+  bundleBytes?: number
+  /** Why this extension is not loadable; when set, `manifest` is absent. */
+  error?: string
+}
+
+/** The `ext.list` reply: the config gate, the root, and what is installed. */
+export interface ExtensionListResult {
+  enabled: boolean
+  dir: string
+  extensions: InstalledExtension[]
+}
+
 /** One node of the Notes tab's recursive markdown tree (mirror of the host's MdTreeNode). */
 export interface MdTreeNode {
   name: string
@@ -147,6 +185,32 @@ export const api = {
   /** The host's home directory (the folder-picker modal's starting point). */
   fsHome: (signal?: AbortSignal) =>
     call<{ path: string }>('fs.home', {}, signal),
+  /** Installed extensions plus the config gate (answers even when disabled,
+   *  so the settings card can explain why nothing loads). */
+  extList: (signal?: AbortSignal) =>
+    call<ExtensionListResult>('ext.list', {}, signal),
+  /** Install an uploaded archive. `id`/`title` are only consulted when the
+   *  upload turns out to be a bare script with no manifest of its own. */
+  extInstall: (upload: { filename: string; dataBase64: string; id?: string; title?: string; icon?: string }) =>
+    call<InstalledExtension>('ext.install', { ...upload }),
+  /** Uninstall one extension (removing an absent id is a no-op). */
+  extRemove: (id: string) =>
+    call<{ ok: true }>('ext.remove', { id }),
+}
+
+/**
+ * Base64-encode an uploaded file for {@link api.extInstall}. Encoding is done
+ * in chunks: `String.fromCharCode(...bytes)` on a multi-MB archive blows the
+ * argument limit and throws a RangeError, which would surface as a confusing
+ * "too many arguments" failure on exactly the large uploads this exists for.
+ */
+export function toBase64(bytes: Uint8Array): string {
+  const CHUNK = 0x8000
+  let binary = ''
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
+  }
+  return btoa(binary)
 }
 
 /**

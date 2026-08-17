@@ -108,3 +108,28 @@ export const IconGlobeOutline16 = ({ size = 16, className }: IconProps) => (
     <path d="M1.5 8h13M8 1.5c-2.4 1.8-2.4 11.2 0 13M8 1.5c2.4 1.8 2.4 11.2 0 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
   </svg>
 )
+
+// ── Split-direction glyphs (the empty-state card page's layout radio) ─────
+
+/**
+ * Horizontal split glyph: a frame split by a VERTICAL divider into two
+ * side-by-side panes (split dir 'row'). The card page's "Horizontal" radio
+ * option.
+ */
+export const IconSplitHorizontal16 = ({ size = 16, className }: IconProps) => (
+  <svg width={size} height={size} className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="1.5" y="2.5" width="13" height="11" rx="2" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M8 4.5v7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+)
+
+/**
+ * Vertical split glyph: a frame split by a HORIZONTAL divider into two
+ * stacked panes (split dir 'col'). The card page's "Vertical" radio option.
+ */
+export const IconSplitVertical16 = ({ size = 16, className }: IconProps) => (
+  <svg width={size} height={size} className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="1.5" y="2.5" width="13" height="11" rx="2" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M4 8h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+)

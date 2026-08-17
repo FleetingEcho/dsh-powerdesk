@@ -289,6 +289,116 @@ export function splitLeafAt(node: SplitNode, paneId: string, dir: 'row' | 'col')
 }
 
 /**
+ * The "+" button's "open a new page" action: split the leaf that owns
+ * `paneId` (in whichever tree — right panel `splits` or bottom panel
+ * `bottomSplits`, resolved via {@link treeOf}) and activate the fresh empty
+ * leaf it creates. The fresh leaf is empty, so it renders the empty-state
+ * card grid (explorer / notes / terminal / browser) — the user then picks a
+ * card to open that tab type in the new pane. This replaces the old "+"
+ * dropdown menu: the "+" always opens a new pane showing the cards.
+ *
+ * `dir` is the split direction: 'col' (stack) for the narrow right sidebar,
+ * 'row' (side-by-side) for the wide bottom panel — passed by the caller per
+ * panel so the new pane gets usable space.
+ * @returns the new state with the fresh leaf split in and activated.
+ */
+export function splitForNewPane(state: SidebarState, paneId: string, dir: 'row' | 'col'): SidebarState {
+  const key = treeOf(state, paneId)
+  const before = new Set(allLeaves(state[key]).map(leaf => leaf.id))
+  const splits = splitLeafAt(state[key], paneId, dir)
+  const fresh = allLeaves(splits).find(leaf => !before.has(leaf.id))
+  return { ...state, [key]: splits, activePane: fresh?.id ?? state.activePane }
+}
+
+/**
+ * Reorient the split that DIRECTLY contains `leafId` as a child: set its
+ * `dir` to `dir` (row ↔ col) so the leaf moves from beside its sibling to
+ * below it (or vice versa). Sizes are preserved — only the layout axis
+ * changes, so a pane the user resized keeps its proportion after a flip.
+ *
+ * This is the empty-state card page's horizontal/vertical radio: the "+"
+ * button splits the pane in the panel's default direction (col for the
+ * narrow right sidebar → the new pane lands below; row for the wide
+ * bottom panel → side-by-side), then the radio lets the user reorient that
+ * split so the new pane lands where they actually want it BEFORE picking a
+ * card. No-op (returns the same state reference) when `leafId` is the root
+ * (no parent split — e.g. the sole pane of a panel after every tab was
+ * closed) or when the split already has the requested direction.
+ */
+export function reorientSplit(state: SidebarState, leafId: string, dir: 'row' | 'col'): SidebarState {
+  const key = treeOf(state, leafId)
+  const splits = reorientParentSplit(state[key], leafId, dir)
+  if (splits === state[key]) return state
+  return { ...state, [key]: splits }
+}
+
+/** Find the split whose DIRECT child is `leafId` and return a copy with its
+ *  `dir` set to `dir` (or the same node if already that direction / not
+ *  found). Walks the tree; only the immediate parent split of the leaf is
+ *  reoriented — deeper splits are left untouched. */
+function reorientParentSplit(node: SplitNode, leafId: string, dir: 'row' | 'col'): SplitNode {
+  if (node.kind === 'leaf') return node
+  const split = node
+  // This split is the IMMEDIATE parent of the leaf iff one of its direct
+  // children carries the leaf id (children are leaves OR splits; a deeper
+  // split's id would never equal a leaf id).
+  if (split.children.some(child => child.id === leafId)) {
+    return split.dir === dir ? node : { ...split, dir }
+  }
+  const children = split.children.map(child => reorientParentSplit(child, leafId, dir))
+  // If no descendant changed, keep the same array reference so the caller's
+  // `=== state[key]` no-op check holds.
+  if (children.every((child, i) => child === split.children[i])) return node
+  return { ...split, children }
+}
+
+/**
+ * Close (dismiss) an empty pane created by the "+" button's split, undoing
+ * the split: remove the leaf via {@link removeLeafAt} (which promotes its
+ * lone sibling when the parent split is left with one child, collapsing the
+ * split so the surviving pane reclaims the full width/height) and move the
+ * active focus to that surviving pane so the user is never left staring at
+ * a stale/disappeared pane id.
+ *
+ * Only meaningful when the leaf has a parent split (i.e. it was created by
+ * a split, not the tree root): the empty-state card page's close button is
+ * hidden for a root leaf (see SplitPane.tsx — same gate as the orientation
+ * radio), so this is never called on a root from the UI. As a guard, a root
+ * leaf (no sibling found) is a no-op: the welcome pane is not closeable —
+ * closing it would empty the panel's only pane for no benefit.
+ * @returns the new state, or the SAME state reference when the leaf is the
+ *          root (no parent to collapse) — so callers can skip persist/notify.
+ */
+export function closePane(state: SidebarState, paneId: string): SidebarState {
+  const key = treeOf(state, paneId)
+  const sibling = siblingFirstLeafId(state[key], paneId)
+  // No sibling ⇒ this leaf is the tree root (no parent split). The welcome
+  // pane is not closeable — return the same reference (no-op).
+  if (sibling === undefined) return state
+  const splits = removeLeafAt(state[key], paneId)
+  return { ...state, [key]: splits, activePane: sibling }
+}
+
+/** The id of the first leaf of the SUBTREE that is the sibling of `leafId`
+ *  in its immediate parent split — the pane that survives and reclaims the
+ *  space when `leafId` is removed (and the natural focus target). Returns
+ *  undefined when `leafId` is the tree root (no parent split) or when the
+ *  leaf cannot be found. */
+function siblingFirstLeafId(node: SplitNode, leafId: string): string | undefined {
+  if (node.kind === 'leaf') return undefined
+  const split = node
+  if (split.children.some(child => child.id === leafId)) {
+    const sibling = split.children.find(child => child.id !== leafId)
+    return sibling === undefined ? undefined : firstLeaf(sibling).id
+  }
+  for (const child of split.children) {
+    const found = siblingFirstLeafId(child, leafId)
+    if (found !== undefined) return found
+  }
+  return undefined
+}
+
+/**
  * Split a leaf by inserting a fresh leaf holding `tab` beside it — the
  * VSCode drag-to-edge gesture. `dir` is the split direction ('row' for
  * left/right, 'col' for up/down); `front` places the new leaf first (left/

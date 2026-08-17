@@ -22,11 +22,14 @@ import type { Context } from '../context-types.ts'
 import {
   activateTab,
   allLeaves,
+  closePane,
   closeTab,
   EXPLORER_TAB_ID,
   moveTab,
   moveTabToEdge,
+  reorientSplit,
   resizeSplitIn,
+  splitForNewPane,
   splitLeafAt,
   toggleExpanded,
   type DropZone,
@@ -37,7 +40,10 @@ import {
   type SplitNode,
 } from './state.ts'
 import type { PowerdeskSidebarService, TabComponentProps, TabDescriptor } from './service.ts'
+import { IconCloseFill14 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { TAB_DRAG_TYPE, TabBar, parseDrag, type NewTabOption } from './TabBar.tsx'
+import { t } from './locales.ts'
+import { IconSplitHorizontal16, IconSplitVertical16 } from './icons.tsx'
 import { RenderBoundary } from './RenderBoundary.tsx'
 import css from './sidebar.module.css'
 
@@ -50,6 +56,17 @@ interface SplitTreeCommonProps {
   panelOpen: boolean
   newTabOptions: NewTabOption[]
   onNewTab: (typeId: string) => void
+  /** The split direction the "+" button uses when it opens a new pane:
+   *  'col' (stack) for the narrow right sidebar, 'row' (side-by-side) for
+   *  the wide bottom panel — so the new pane gets usable space. */
+  defaultSplitDir: 'row' | 'col'
+  /** The `dir` of the leaf's IMMEDIATE parent split, or undefined when the
+   *  leaf is the tree root (no parent). Set by {@link SplitTree} as it
+   *  recurses (each split node overrides this for its children with its own
+   *  `dir`), so a leaf always sees the direction of the split that owns it.
+   *  The empty-state card page's horizontal/vertical radio reads this to
+   *  show which option is selected and reorients it via `reorientSplit`. */
+  parentSplitDir?: 'row' | 'col'
 }
 
 /**
@@ -162,7 +179,7 @@ function Divider(props: { dir: 'row' | 'col'; splitId: string; index: number; st
 /** One leaf pane: its own tab strip, mounted tab contents, and the
  *  drag-to-edge drop overlay over its content area. */
 function PaneLeaf(props: SplitTreeCommonProps & { leaf: SidebarLeaf }): ReactNode {
-  const { leaf, ctx, store, service, cwd, panelOpen, newTabOptions, onNewTab } = props
+  const { leaf, ctx, store, service, cwd, panelOpen, newTabOptions, onNewTab, defaultSplitDir, parentSplitDir } = props
   const [dropZone, setDropZone] = useState<DropZone | null>(null)
 
   const descriptorOf = useCallback((tab: SidebarTab): TabDescriptor | undefined => service.getTab(tab.type), [service])
@@ -187,14 +204,38 @@ function PaneLeaf(props: SplitTreeCommonProps & { leaf: SidebarLeaf }): ReactNod
     onNewTab(typeId)
   }, [store, leaf.id, onNewTab])
 
-  // A pane holding ONLY file-open tabs ('editor' — the literal id
-  // service.openFile hardcodes) is a file-viewing pane, not a place to add
-  // arbitrary new terminal/browser/explorer tabs: those only ever land there
-  // via clicking a file in Explorer (see makeRoomBesideExplorer), never a
-  // "new tab" menu. Hide the strip's + for it (TabBar hides it on an empty
-  // array); the empty-state cards below still use the full `newTabOptions`
-  // once the pane has NO tabs left (no longer file-only).
-  const isFileOnlyPane = leaf.tabs.length > 0 && leaf.tabs.every(tab => tab.type === 'editor')
+  // The "+" button's "open a new page" action: split THIS pane (in whichever
+  // tree it lives in — right panel or bottom panel, resolved by splitForNewPane
+  // via treeOf) and activate the fresh empty leaf. The new pane is empty, so it
+  // renders the empty-state card grid (explorer / notes / terminal / browser);
+  // the user picks a card to open that tab type there. Replaces the old "+"
+  // dropdown: the "+" always opens a new pane showing the cards. `dir` is the
+  // panel's default split direction ('col' for the narrow right sidebar so
+  // panes stack vertically; 'row' for the wide bottom panel so they sit
+  // side-by-side).
+  const onNewPane = useCallback((): void => {
+    store.reduce(s => splitForNewPane(s, leaf.id, defaultSplitDir))
+  }, [store, leaf.id, defaultSplitDir])
+
+  // The empty-state card page's horizontal/vertical radio: reorient the split
+  // that DIRECTLY owns this leaf so the pane moves from beside its sibling to
+  // below it (or vice versa) — the user picks where the new pane lands BEFORE
+  // choosing a card. Only meaningful when this leaf has a parent split (i.e.
+  // it was created by a split, not the tree root); the root leaf has no parent
+  // to reorient, so the radio is hidden there.
+  const onReorient = useCallback((dir: 'row' | 'col'): void => {
+    store.reduce(s => reorientSplit(s, leaf.id, dir))
+  }, [store, leaf.id])
+
+  // The empty-state card page's close button: dismiss this empty pane — undo
+  // the "+" split by removing the leaf (its sibling is promoted, reclaiming
+  // the full width/height) and move focus to that surviving pane. Mirrors the
+  // radio's gate: hidden for a root leaf (the welcome pane isn't closeable —
+  // closing it would empty the panel's only pane). Only an EMPTY pane shows
+  // the card page, so this never closes a pane that holds tabs.
+  const onClosePane = useCallback((): void => {
+    store.reduce(s => closePane(s, leaf.id))
+  }, [store, leaf.id])
 
   return (
     <div className={clsx(css.pane, dropZone !== null && css.paneDrop)}>
@@ -204,8 +245,7 @@ function PaneLeaf(props: SplitTreeCommonProps & { leaf: SidebarLeaf }): ReactNod
         active={leaf.active}
         onActivate={(tabId) => { store.reduce(s => activateTab(s, leaf.id, tabId)) }}
         onClose={(tabId) => { store.reduce(s => closeTab(s, leaf.id, tabId)) }}
-        onNewTab={onNewTabHere}
-        newTabOptions={isFileOnlyPane ? [] : newTabOptions}
+        onNewPane={onNewPane}
         getTabIcon={tabIconOf}
         onDropTab={(payload, before) => {
           const index = before === null ? -1 : leaf.tabs.findIndex(tab => tab.id === before)
@@ -251,19 +291,81 @@ function PaneLeaf(props: SplitTreeCommonProps & { leaf: SidebarLeaf }): ReactNod
         </div>
       ) : (
         <div className={css.paneEmptyCards}>
-          {newTabOptions.map(option => (
-            <button
-              key={option.id}
-              type="button"
-              className={css.paneCard}
-              disabled={option.disabled === true}
-              title={option.label}
-              onClick={() => { onNewTabHere(option.id) }}
-            >
-              {option.icon ?? null}
-              <span>{option.label}</span>
-            </button>
-          ))}
+          <div className={css.paneEmptyHeader}>
+            <div className={css.paneEmptyHeaderText}>
+              <h2 className={css.paneEmptyHeading}>{t('newPaneHeading')}</h2>
+              <p className={css.paneEmptySubheading}>{t('newPaneSubheading')}</p>
+            </div>
+            {/* Header controls (right-aligned): the horizontal/vertical layout
+                radio and the close button. Both are gated on the leaf having a
+                parent split — a root leaf (the welcome pane, no parent) has
+                nothing to reorient and nothing to close (closing it would empty
+                the panel's only pane), so the whole cluster is hidden there. */}
+            {parentSplitDir !== undefined && (
+              <div className={css.paneEmptyControls}>
+                {/* Horizontal/vertical layout radio: reorients the split that owns
+                    this empty pane so the user chooses where the new pane lands
+                    (side-by-side vs stacked) BEFORE picking a card. */}
+                <div className={css.paneLayoutRadio} role="radiogroup" aria-label={t('cardLayoutLabel')}>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={parentSplitDir === 'row'}
+                    className={clsx(css.paneLayoutOption, parentSplitDir === 'row' && css.paneLayoutOptionSelected)}
+                    title={t('layoutHorizontal')}
+                    aria-label={t('layoutHorizontal')}
+                    onClick={() => { onReorient('row') }}
+                  >
+                    <IconSplitHorizontal16 />
+                  </button>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={parentSplitDir === 'col'}
+                    className={clsx(css.paneLayoutOption, parentSplitDir === 'col' && css.paneLayoutOptionSelected)}
+                    title={t('layoutVertical')}
+                    aria-label={t('layoutVertical')}
+                    onClick={() => { onReorient('col') }}
+                  >
+                    <IconSplitVertical16 />
+                  </button>
+                </div>
+                {/* Close: dismiss this empty pane — undo the "+" split (the
+                    sibling is promoted, reclaiming the full space) and move
+                    focus to it. Lets the user back out of a "+" without
+                    picking a card. */}
+                <button
+                  type="button"
+                  className={css.paneCloseButton}
+                  aria-label={t('closePane')}
+                  title={t('closePane')}
+                  onClick={() => { onClosePane() }}
+                >
+                  <IconCloseFill14 />
+                </button>
+              </div>
+            )}
+          </div>
+          <div className={css.paneCardGrid}>
+            {newTabOptions.map(option => (
+              <button
+                key={option.id}
+                type="button"
+                className={css.paneCard}
+                disabled={option.disabled === true}
+                title={option.label}
+                onClick={() => { onNewTabHere(option.id) }}
+              >
+                <span className={css.paneCardIcon} aria-hidden="true">{option.icon ?? null}</span>
+                <span className={css.paneCardText}>
+                  <span className={css.paneCardLabel}>{option.label}</span>
+                  {option.description !== undefined && (
+                    <span className={css.paneCardDesc}>{option.description}</span>
+                  )}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -271,7 +373,11 @@ function PaneLeaf(props: SplitTreeCommonProps & { leaf: SidebarLeaf }): ReactNod
 }
 
 /** Recursive split-tree renderer: a leaf becomes a pane, a split becomes a
- *  flex row/col of children with draggable dividers between them. */
+ *  flex row/col of children with draggable dividers between them. As it
+ *  recurses, each split node OVERRIDES `parentSplitDir` (from the common
+ *  props) with its own `dir` for its children, so a leaf always receives the
+ *  direction of its IMMEDIATE parent split — the empty-state card page's
+ *  horizontal/vertical radio reads it to show the selected option. */
 export function SplitTree(props: SplitTreeCommonProps & { node: SplitNode }): ReactNode {
   const { node, ...rest } = props
   if (node.kind === 'leaf') return <PaneLeaf leaf={node} {...rest} />
@@ -281,7 +387,7 @@ export function SplitTree(props: SplitTreeCommonProps & { node: SplitNode }): Re
         <Fragment key={child.id}>
           {i > 0 && <Divider dir={node.dir} splitId={node.id} index={i - 1} store={rest.store} />}
           <div className={css.splitChild} style={{ flex: `${String(node.sizes[i])} ${String(node.sizes[i])} 0%` }}>
-            <SplitTree node={child} {...rest} />
+            <SplitTree node={child} {...rest} parentSplitDir={node.dir} />
           </div>
         </Fragment>
       ))}
