@@ -471,7 +471,7 @@ export function patchTab(
 /**
  * Land a tab in the active pane (or focus its existing instance by id).
  * Dedup strategies (single-instance, per-path, per-change) are owned by the
- * tab descriptor through {@link BetterSidebarService.openTab} / `dedupeKey`;
+ * tab descriptor through {@link PowerdeskSidebarService.openTab} / `dedupeKey`;
  * this reducer only handles the id-based safety net (reconcile and
  * openDiffTab already check existence before calling) and the landing
  * itself — the service's dedupe path delegates here after its dedupeKey

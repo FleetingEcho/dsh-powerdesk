@@ -1,7 +1,7 @@
 /**
  * The BetterSidebar client service: a registry that external plugins use
  * to contribute sidebar tab types and file previewers. The service is
- * published to the cordis context as `ctx.betterSidebar` (see
+ * published to the cordis context as `ctx.powerdeskSidebar` (see
  * {@link ../context-types.ts}); consumers declare it in `inject` and call
  * `registerTab` / `registerFileViewer`, both returning a disposer that
  * cordis auto-invokes on fiber disposal (HMR-safe).
@@ -78,7 +78,7 @@ export interface SidebarSettingToggle {
 /** Props of a descriptor's custom settings panel (`settings.render`). */
 export interface SidebarSettingsRenderProps {
   store: SidebarStore
-  service: BetterSidebarService
+  service: PowerdeskSidebarService
   prefs: SidebarPrefs
   /** This descriptor's own persisted settings blob (from `pluginSettings[id]`). */
   pluginSettings: Record<string, unknown>
@@ -289,9 +289,9 @@ export interface OpenTabSeed {
 }
 
 /**
- * The registry service published as `ctx.betterSidebar`.
+ * The registry service published as `ctx.powerdeskSidebar`.
  */
-export interface BetterSidebarService {
+export interface PowerdeskSidebarService {
   registerTab(descriptor: TabDescriptor): () => void
   registerFileViewer(descriptor: FileViewerDescriptor): () => void
   getTabs(): readonly TabDescriptor[]
@@ -408,7 +408,7 @@ export function matchUrlTarget(tabs: readonly TabDescriptor[], url: URL): TabDes
     try {
       claimed = tab.urlTarget(url) === true
     } catch (error) {
-      console.error('[dsh-better-sidebar] urlTarget error:', error)
+      console.error('[dsh-powerdesk] urlTarget error:', error)
       continue
     }
     if (claimed) return tab
@@ -427,9 +427,9 @@ export const SIDEBAR_SERVICE_VERSION = '0.12.3'
  * are never removed). Each string names a v0.12.0+ capability:
  * - 'badge': TabDescriptor.badge
  * - 'tabLifecycle': TabDescriptor.onOpen/onActivate/onClose
- * - 'updateTab': BetterSidebarService.updateTab
- * - 'openFile': BetterSidebarService.openFile
- * - 'targetedOpen': BetterSidebarService.openTab(seed, scope?)
+ * - 'updateTab': PowerdeskSidebarService.updateTab
+ * - 'openFile': PowerdeskSidebarService.openFile
+ * - 'targetedOpen': PowerdeskSidebarService.openTab(seed, scope?)
  * - 'stateSubscription': getSnapshot/subscribeState
  * - 'tabMeta': SidebarTab.meta (seeds, createTab, updateTab, persistence)
  * - 'pluginSettings': SidebarSettingsDeclaration.pluginToggles/render
@@ -452,7 +452,7 @@ function safeCall(fn: () => void): void {
   try {
     fn()
   } catch (error) {
-    console.error('[dsh-better-sidebar] plugin callback error:', error)
+    console.error('[dsh-powerdesk] plugin callback error:', error)
   }
 }
 
@@ -461,7 +461,7 @@ function safeCall(fn: () => void): void {
  * tab/viewer registries (Map + listener set) and proxies openTab/closeTab
  * to the store's reducer. One instance per client plugin activation.
  */
-export function createBetterSidebarService(store: SidebarStore): BetterSidebarService {
+export function createPowerdeskSidebarService(store: SidebarStore): PowerdeskSidebarService {
   const tabs = new Map<string, TabDescriptor>()
   const viewers = new Map<string, FileViewerDescriptor>()
   const listeners = new Set<() => void>()
@@ -477,7 +477,7 @@ export function createBetterSidebarService(store: SidebarStore): BetterSidebarSe
 
   const registerTab = (descriptor: TabDescriptor): (() => void) => {
     if (tabs.has(descriptor.id)) {
-      throw new Error(`[dsh-better-sidebar] tab type "${descriptor.id}" already registered`)
+      throw new Error(`[dsh-powerdesk] tab type "${descriptor.id}" already registered`)
     }
     tabs.set(descriptor.id, descriptor)
     notify()
@@ -491,7 +491,7 @@ export function createBetterSidebarService(store: SidebarStore): BetterSidebarSe
 
   const registerFileViewer = (descriptor: FileViewerDescriptor): (() => void) => {
     if (viewers.has(descriptor.id)) {
-      throw new Error(`[dsh-better-sidebar] file viewer "${descriptor.id}" already registered`)
+      throw new Error(`[dsh-powerdesk] file viewer "${descriptor.id}" already registered`)
     }
     viewers.set(descriptor.id, descriptor)
     notify()
@@ -547,7 +547,7 @@ export function createBetterSidebarService(store: SidebarStore): BetterSidebarSe
     // + menu nor from derived flows (file opens, subagent auto-open,
     // external plugins). Already-open tabs keep rendering.
     if (!isTabEnabled(seed.type)) {
-      console.warn(`[dsh-better-sidebar] tab type "${seed.type}" is disabled in the side card settings`)
+      console.warn(`[dsh-powerdesk] tab type "${seed.type}" is disabled in the side card settings`)
       return
     }
     const descriptor = tabs.get(seed.type)

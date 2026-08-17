@@ -8,7 +8,7 @@
  * copied from dsh-better-sidebar — `SidebarShell`, `state.ts`, `service.ts`,
  * `TabBar`, the panel/tab CSS — stripped of the explorer / git / subagent /
  * editor / diff views and the host routes those need). It publishes a
- * `betterSidebar` service (the tab registry) via `ctx.provide` and mounts
+ * `powerdeskSidebar` service (the tab registry) via `ctx.provide` and mounts
  * the shell in a portal, so the sidebar entry is always present without
  * depending on the `dsh-better-sidebar` plugin being installed. The two
  * powerdesk surfaces (a restty terminal + a sandboxed browser) register as
@@ -23,13 +23,13 @@ import { createElement, type ComponentType, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import type { Context } from '../context-types.ts'
 import type {
-  BetterSidebarService,
+  PowerdeskSidebarService,
   TabComponentProps,
   TabDescriptor,
   TabType,
 } from './service.ts'
 import type { SidebarTab } from './service.ts'
-import { createBetterSidebarService } from './service.ts'
+import { createPowerdeskSidebarService } from './service.ts'
 import { createSidebarStore, type SidebarStore } from './state.ts'
 import { attachLocale, t } from './locales.ts'
 import { resetChunks } from './chunk-loader.ts'
@@ -131,7 +131,7 @@ function BrowserTabView(props: TabComponentProps): ReactNode {
 }
 
 /** Build the terminal tab descriptor (registered into powerdesk's own
- *  betterSidebar service). */
+ *  powerdeskSidebar service). */
 function buildResttyTabDescriptor(): TabDescriptor {
   const descriptor = {
     id: POWERDESK_TAB_ID,
@@ -164,7 +164,7 @@ function buildResttyTabDescriptor(): TabDescriptor {
 }
 
 /** Build the browser tab descriptor (registered into powerdesk's own
- *  betterSidebar service). The browser tab uses a `urlTarget` claim so
+ *  powerdeskSidebar service). The browser tab uses a `urlTarget` claim so
  *  external http links clicked in the chat can be intercepted into the
  *  sidebar. */
 function buildBrowserTabDescriptor(): TabDescriptor {
@@ -197,9 +197,9 @@ function buildBrowserTabDescriptor(): TabDescriptor {
  * Mount the powerdesk sidebar shell to <body> in a portal; returns the
  * disposer. The shell is the layout + wrapper (panel / tab bar / content)
  * copied from dsh-better-sidebar; the terminal + browser register as tabs
- * through the provided `betterSidebar` service.
+ * through the provided `powerdeskSidebar` service.
  */
-function mountSidebarShell(ctx: Context, store: SidebarStore, service: BetterSidebarService): () => void {
+function mountSidebarShell(ctx: Context, store: SidebarStore, service: PowerdeskSidebarService): () => void {
   if (typeof document === 'undefined') return () => {}
   const host = document.createElement('div')
   host.dataset.dshPlugin = 'dsh-powerdesk'
@@ -230,12 +230,12 @@ export function apply(ctx: Context): void {
 
   // Powerdesk owns its sidebar: create the per-session store + the tab
   // registry service, PUBLISH the service so the settings section (and any
-  // other plugin) can read it via ctx.get('betterSidebar'), and mount the
+  // other plugin) can read it via ctx.get('powerdeskSidebar'), and mount the
   // shell. The terminal + browser register as tabs through this same
   // service. No dependency on the dsh-better-sidebar plugin.
   const sidebarStore = createSidebarStore()
-  const service = createBetterSidebarService(sidebarStore)
-  ctx.provide('betterSidebar', service)
+  const service = createPowerdeskSidebarService(sidebarStore)
+  ctx.provide('powerdeskSidebar', service)
 
   ctx.effect(
     () => mountSidebarShell(ctx, sidebarStore, service),
@@ -257,7 +257,7 @@ export function apply(ctx: Context): void {
   // user a findable place to OPEN either surface. `slots.inject` waits for
   // the settings shell to declare the `settings.section` slot, then
   // registers our section component; the injected `sidebar` face is re-probed
-  // via ctx.get('betterSidebar') at render time (powerdesk provides it, so
+  // via ctx.get('powerdeskSidebar') at render time (powerdesk provides it, so
   // it is always present).
   ctx.effect(
     () => ctx.slots.inject('settings.section', () => ctx.slots.register({
@@ -265,7 +265,7 @@ export function apply(ctx: Context): void {
       id: 'dsh-powerdesk',
       order: 100,
       label: () => t('settingsNav'),
-      inject: () => ({ sidebar: ctx.get('betterSidebar') }),
+      inject: () => ({ sidebar: ctx.get('powerdeskSidebar') }),
     }, SettingsSection)),
     'dsh-powerdesk: settings section',
   )

@@ -76,7 +76,7 @@ prebuilt `dsh_powerdesk_pty.node` into `prebuilt/<triple>/`.
 Clone the repo, build, then point DSH at the local checkout:
 
 ```bash
-git clone git@gitlab.fafmgui.corp.fortinet.com:developers/dsh-powerdesk.git
+git clone git@github.com:FleetingEcho/dsh-powerdesk.git
 cd dsh-powerdesk
 
 pnpm install

@@ -5,7 +5,7 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "https://github.com/omdsh-dev/dsh-powerdesk"
+    "url": "https://github.com/FleetingEcho/dsh-powerdesk"
   },
   "publishConfig": { "access": "public" },
   "main": "lib/index.js",

@@ -23,10 +23,10 @@
  * - slots: the client runtime SlotRegistry
  * - locale: @deepseek-ai/dsh-client-locale (active locale + namespace registry)
  * - effect: the DSH-vendored cordis lifecycle helper
- * - betterSidebar: dsh-better-sidebar's client registry service (OPTIONAL —
- *   present only when dsh-better-sidebar is installed; the client half
- *   registers a tab through it when available and falls back to a standalone
- *   floating panel otherwise).
+ * - powerdeskSidebar: powerdesk's OWN client registry service (published by
+ *   the client half itself, not sourced from dsh-better-sidebar — the two
+ *   plugins must not share a service name, or whichever loads second fails
+ *   to register).
  *
  * Drift from upstream is contained to this file.
  *
@@ -38,7 +38,7 @@
  * types at the few boundaries that need them — e.g. the `ws` upgrade hook
  * in src/index.ts).
  */
-import type { BetterSidebarService } from './client/service.ts'
+import type { PowerdeskSidebarService } from './client/service.ts'
 
 /** The request face route handlers see (structural subset of node's
  *  IncomingMessage: the URL/method/header reads and the async body
@@ -166,11 +166,10 @@ export interface ResttyLocaleService {
 /**
  * Standalone Context interface: a structural subset of the real cordis
  * Context. Both halves type their `apply(ctx: Context)` parameter against
- * this. The real cordis Context (augmented by dsh-better-sidebar when
- * present) is structurally assignable to this interface, so DSH can call
- * `apply(ctx)` with the live context. `betterSidebar` is optional here
- * because the client half falls back to the standalone panel when
- * dsh-better-sidebar is not installed.
+ * this. The real cordis Context is structurally assignable to this
+ * interface, so DSH can call `apply(ctx)` with the live context.
+ * `powerdeskSidebar` is optional here only because the field is unused on
+ * the host side (the client half always provides it — see {@link provide}).
  */
 export interface Context {
   /** The host webserver route registry. */
@@ -184,25 +183,25 @@ export interface Context {
   /** The client locale service. */
   locale: ResttyLocaleService
   /**
-   * The client-side sidebar registry published by dsh-better-sidebar.
-   * OPTIONAL: undefined on the host side and on the client side when
-   * dsh-better-sidebar is not installed (the client half then mounts the
-   * standalone floating panel instead of registering a tab).
+   * The client-side sidebar registry powerdesk itself publishes (its own
+   * tab registry, unrelated to dsh-better-sidebar's service of the same
+   * shape). OPTIONAL: undefined on the host side; always present on the
+   * client side once the plugin has activated.
    *
-   * NOTE: read this via `ctx.get('betterSidebar')`, NOT `ctx.betterSidebar`.
+   * NOTE: read this via `ctx.get('powerdeskSidebar')`, NOT `ctx.powerdeskSidebar`.
    * Direct property access throws "cannot get property without inject" unless
-   * the service is declared in `inject`, but betterSidebar is optional (the
+   * the service is declared in `inject`, but powerdeskSidebar is optional (the
    * plugin falls back to the standalone panel). `ctx.get(name)` reads the
    * cordis store without the inject requirement and returns undefined when
    * the service isn't (yet) provided. The field below exists only so the
    * structural type stays a superset of the real cordis Context.
    */
-  betterSidebar?: BetterSidebarService
+  powerdeskSidebar?: PowerdeskSidebarService
   /**
    * Read an optional service from the cordis store WITHOUT the inject
    * requirement (the cordis `ReflectService.get` built-in). Returns the
    * service value, or undefined when not (yet) provided. Use this for
-   * optional services like `betterSidebar` instead of direct `ctx.x`
+   * optional services like `powerdeskSidebar` instead of direct `ctx.x`
    * access (which the inject Guard rejects).
    */
   get<T = any>(name: string): T | undefined
@@ -210,7 +209,7 @@ export interface Context {
    * Publish a service into the cordis store so other plugins (and this
    * plugin's own `ctx.get(name)`) can read it. DSH-vendored cordis: the
    * service becomes available immediately at activation. Powerdesk uses
-   * this to publish its OWN `betterSidebar` service (the sidebar shell +
+   * this to publish its OWN `powerdeskSidebar` service (the sidebar shell +
    * tab registry), so the plugin is self-contained — it no longer depends
    * on the `dsh-better-sidebar` plugin being installed to surface its
    * terminal/browser tabs.

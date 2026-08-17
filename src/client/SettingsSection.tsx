@@ -2,26 +2,23 @@
  * The "Powerdesk" Side card in the DSH Settings shell — a discoverable entry
  * for the terminal and the browser surfaces.
  *
- * dsh-powerdesk surfaces as tabs inside dsh-better-sidebar's sidebar panel
- * (or a standalone floating panel when dsh-better-sidebar is absent). The
- * sidebar's own open/toggle cluster lives at the top-right corner and is not
- * obvious, so this settings section gives users a single, findable place to
- * OPEN either surface: the buttons call `sidebar.openTab({ type, ... })`,
- * which opens the sidebar panel (if collapsed) and focuses the matching tab,
- * then the section closes the settings panel.
- *
- * When dsh-better-sidebar is not installed, the section explains the
- * standalone floating-panel fallback (its toggle sits at the bottom-right
- * corner) and recommends dsh-better-sidebar for the integrated tabbed path.
+ * dsh-powerdesk surfaces as tabs inside its OWN self-contained sidebar panel
+ * (layout/chrome copied from dsh-better-sidebar, but a separate service —
+ * see `powerdeskSidebar` in context-types.ts). The sidebar's own open/toggle
+ * cluster lives at the top-right corner and is not obvious, so this settings
+ * section gives users a single, findable place to OPEN either surface: the
+ * buttons call `sidebar.openTab({ type, ... })`, which opens the sidebar
+ * panel (if collapsed) and focuses the matching tab, then the section closes
+ * the settings panel.
  *
  * The section is registered through `ctx.slots.inject('settings.section', …)`
  * in the client `apply()` (see index.tsx). The shell owns modal visibility and
  * navigation; it passes `close` (SettingsSectionOwnerProps) and our injected
- * `sidebar` face (the optional BetterSidebarService, probed via
- * `ctx.get('betterSidebar')`).
+ * `sidebar` face (the optional PowerdeskSidebarService, probed via
+ * `ctx.get('powerdeskSidebar')`).
  */
 import { useState, type ReactNode } from 'react'
-import type { BetterSidebarService } from './service.ts'
+import type { PowerdeskSidebarService } from './service.ts'
 import { POWERDESK_TAB_ID } from './prefs.ts'
 import { POWERDESK_BROWSER_TAB_ID } from './index.tsx'
 import { t } from './locales.ts'
@@ -33,7 +30,7 @@ export interface SettingsSectionOwnerProps {
 
 /** The injected face: the optional sidebar registry service. */
 export interface SettingsSectionInjected {
-  sidebar: BetterSidebarService | undefined
+  sidebar: PowerdeskSidebarService | undefined
 }
 
 /** Full section props: the shell owner share + the injected face. */
@@ -44,7 +41,7 @@ export type SettingsSectionProps = SettingsSectionOwnerProps & SettingsSectionIn
  * Sets a one-line "opened" hint instead of closing instantly so the user
  * sees confirmation (the sidebar opens behind the settings modal).
  */
-function openSurface(sidebar: BetterSidebarService, type: string, close: () => void, setHint: (s: string) => void): void {
+function openSurface(sidebar: PowerdeskSidebarService, type: string, close: () => void, setHint: (s: string) => void): void {
   try {
     sidebar.openTab({ type } as { type: string })
     setHint(t('settingsOpenedHint'))

@@ -46,7 +46,7 @@ export type { ResttyConfig, ResolvedResttyConfig } from './config.ts'
 // can type their own restty tab descriptors without reaching into /client.
 export type { Context } from './context-types.ts'
 export type {
-  BetterSidebarService,
+  PowerdeskSidebarService,
   TabDescriptor,
   TabComponentProps,
 } from './client/service.ts'

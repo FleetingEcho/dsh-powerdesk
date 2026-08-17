@@ -12,7 +12,7 @@
  * (the + menu offers the registered tab types) and a content area that
  * keeps every open tab MOUNTED (inactive ones hidden) so switching never
  * tears down a terminal's connection/scrollback. The tab registry contract
- * (`BetterSidebarService`) is unchanged, so powerdesk's existing
+ * (`PowerdeskSidebarService`) is unchanged, so powerdesk's existing
  * terminal/browser tab descriptors register through the same path.
  *
  * Single pane by design: powerdesk ships exactly two surfaces (terminal +
@@ -35,7 +35,7 @@ import {
   type SidebarStore,
   type SidebarTab,
 } from './state.ts'
-import type { BetterSidebarService, TabComponentProps, TabDescriptor } from './service.ts'
+import type { PowerdeskSidebarService, TabComponentProps, TabDescriptor } from './service.ts'
 import { togglePanel, setWidth, closeTab, activateTab } from './state.ts'
 import { TabBar, type NewTabOption, type TabDragPayload } from './TabBar.tsx'
 import { IconPanelRightOutline16 } from './icons.tsx'
@@ -89,7 +89,7 @@ function TabContent(props: {
 }
 
 /** The powerdesk sidebar shell. */
-export function SidebarShell(props: { ctx: Context; store: SidebarStore; service: BetterSidebarService }): ReactNode {
+export function SidebarShell(props: { ctx: Context; store: SidebarStore; service: PowerdeskSidebarService }): ReactNode {
   const { ctx, store, service } = props
 
   // The active session: subscribe to the runtime's session list feed so the
