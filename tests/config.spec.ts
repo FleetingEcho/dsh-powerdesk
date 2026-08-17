@@ -1,0 +1,23 @@
+import { describe, it, expect } from 'vitest'
+import { Config, resolveResttyConfig } from '../src/config.ts'
+
+describe('config', () => {
+  it('resolveResttyConfig fills defaults', () => {
+    const r = resolveResttyConfig(undefined)
+    expect(r).toEqual({ terminalsPerSession: 3, reconnectGraceMs: 30_000, shell: '' })
+  })
+
+  it('resolveResttyConfig honors provided values and trims shell', () => {
+    const r = resolveResttyConfig({ terminalsPerSession: 5, reconnectGraceMs: 1000, shell: '  /bin/zsh  ' })
+    expect(r).toEqual({ terminalsPerSession: 5, reconnectGraceMs: 1000, shell: '/bin/zsh' })
+  })
+
+  it('Config schema validates and defaults (schemastery)', () => {
+    const parsed = Config({}) as ResolvedLike
+    expect(parsed.terminalsPerSession).toBe(3)
+    expect(parsed.reconnectGraceMs).toBe(30_000)
+    expect(parsed.shell).toBe('')
+  })
+})
+
+interface ResolvedLike { terminalsPerSession: number; reconnectGraceMs: number; shell: string }

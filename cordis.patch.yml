@@ -1,0 +1,18 @@
+# dsh-powerdesk bundle patch
+#
+# When this plugin is installed through the official CLI —
+#
+#   dsh plugin --profile <name> add dsh-powerdesk@<version>
+#
+# — the command reconciles `dsh.profile.bundles` against installed packages
+# and, seeing this declaration, appends `dsh-powerdesk` to the bundle
+# stack. The profile boot then merges THIS patch (a single `insert` of the
+# plugin row) exactly like a manual cordis.patch.yml mount line. No profile
+# file edits needed — one command installs and mounts.
+#
+# If the profile already carries a manual mount line for this plugin, remove
+# it before switching to the bundle channel to avoid double-mounting (two
+# Node halves, two terminal backends on the same /powerdesk/ws route).
+- insert:
+    - id: restty-terminal
+      name: 'dsh-powerdesk'

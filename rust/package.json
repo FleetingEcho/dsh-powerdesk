@@ -1,0 +1,23 @@
+{
+  "name": "dsh-powerdesk-pty-crate",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Build metadata for the dsh-powerdesk-pty Rust crate (consumed by @napi-rs/cli). Plain `cargo build --release` (see ../scripts/build-rust.sh) also works without this file.",
+  "main": "dsh_powerdesk_pty.node",
+  "napi": {
+    "name": "dsh_powerdesk_pty",
+    "package": {
+      "name": "@dsh-powerdesk-pty"
+    },
+    "triples": {
+      "defaults": false,
+      "additional": [
+        "aarch64-apple-darwin",
+        "x86_64-apple-darwin",
+        "x86_64-unknown-linux-gnu",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-pc-windows-msvc"
+      ]
+    }
+  }
+}

@@ -1,0 +1,156 @@
+/**
+ * Minimal i18n for the restty terminal surface. The plugin follows the DSH
+ * i18n system: {@link attachLocale} subscribes to the locale service so the
+ * module-level {@link t} resolves the Host-backed language preference, and
+ * the dictionaries register into the service's namespace registry under
+ * `powerdesk`. The lazy chunk (src/client/chunks/terminal.tsx) imports
+ * `t` only — it reads the module-level locale, never the cordis service, so
+ * the chunk stays cordis-coupling-free.
+ */
+import type { ResttyLocaleService } from '../context-types.ts'
+
+/** The locale namespace this plugin registers its dictionaries under. */
+export const LOCALE_NS = 'powerdesk'
+
+type Dict = Record<string, string>
+
+const en: Dict = {
+  tabTitle: 'Terminal',
+  terminal: 'Terminal',
+  loading: 'Loading…',
+  disconnected: 'Disconnected. Reconnecting…',
+  terminalError: 'Terminal error',
+  terminalRetry: 'Retry',
+  terminalConnectFailed: 'Could not connect to the terminal',
+  terminalDepsFailed: 'Native PTY unavailable',
+  terminalDepsHint: 'The Rust PTY native module failed to load. Run the repair command where your DSH profile lives, then retry:',
+  terminalDepsProfile: ' (profile: {profile})',
+  copy: 'Copy',
+  copied: 'Copied',
+  standaloneToggle: 'Toggle terminal',
+  standaloneNoSession: 'No active session. Open a conversation to use the terminal.',
+  settingsFontFamilyTitle: 'Font family',
+  settingsFontFamilyDesc: 'Custom font for the terminal (empty = theme code font)',
+  settingsFontFamilyPlaceholder: 'e.g. "JetBrains Mono", monospace',
+  settingsFontSizeTitle: 'Font size',
+  settingsFontSizeDesc: 'Terminal font size in pixels',
+  settingsBackendTitle: 'PTY backend',
+  settingsBackendDesc: 'own = the Rust /powerdesk/ws/terminal; better-sidebar = reuse dsh-better-sidebar\'s terminal backend',
+  settingsThemeTitle: 'Theme',
+  settingsThemeDesc: 'Builtin restty theme name (empty = follow the app scheme)',
+  // Browser
+  browser: 'Browser',
+  browserTabTitle: 'Browser',
+  browserPlaceholder: 'Enter a URL, e.g. example.com',
+  browserGo: 'Go',
+  browserBack: 'Back',
+  browserForward: 'Forward',
+  refresh: 'Refresh',
+  browserStart: 'Enter a URL to start browsing (sandbox mode)',
+  browserBlockedScheme: 'Blocked: only http/https URLs are allowed',
+  browserBlockedLoopback: 'Blocked: local and internal addresses cannot be browsed here',
+  browserInvalid: 'Invalid URL',
+  browserOpenExternal: 'Open in browser',
+  browserNoSandboxWarning: 'Sandbox off: the current page runs with full GUI privileges (re-enable in settings)',
+  browserEmbedBlocked: '{host} refused to be embedded',
+  browserEmbedBlockedDesc: 'This site forbids being displayed inside other pages (X-Frame-Options / frame-ancestors), so it cannot load in the sidebar. Open it in your browser instead.',
+  browserEmbedAnyway: 'Load anyway',
+  sandboxStatusOn: 'Sandbox on: pages cannot access the GUI\'s data or local files; logins and third-party cookies may not work',
+  sandboxUnlock: 'Unlock (unsafe)',
+  sandboxRestore: 'Restore sandbox',
+  standaloneToggleBrowser: 'Toggle browser',
+  standaloneSurfaceTerminal: 'Terminal',
+  standaloneSurfaceBrowser: 'Browser',
+}
+
+const zh: Dict = {
+  tabTitle: '终端',
+  terminal: '终端',
+  loading: '加载中…',
+  disconnected: '已断开，正在重连…',
+  terminalError: '终端错误',
+  terminalRetry: '重试',
+  terminalConnectFailed: '无法连接到终端',
+  terminalDepsFailed: '原生 PTY 不可用',
+  terminalDepsHint: 'Rust PTY 原生模块加载失败。请在 DSH profile 所在环境运行修复命令，然后重试：',
+  terminalDepsProfile: '（profile：{profile}）',
+  copy: '复制',
+  copied: '已复制',
+  standaloneToggle: '切换终端',
+  standaloneNoSession: '没有活动会话。请先打开一个对话再使用终端。',
+  settingsFontFamilyTitle: '字体',
+  settingsFontFamilyDesc: '终端自定义字体（留空 = 主题代码字体）',
+  settingsFontFamilyPlaceholder: '例如 "JetBrains Mono", monospace',
+  settingsFontSizeTitle: '字号',
+  settingsFontSizeDesc: '终端字号（像素）',
+  settingsBackendTitle: 'PTY 后端',
+  settingsBackendDesc: 'own = Rust /powerdesk/ws/terminal；better-sidebar = 复用 dsh-better-sidebar 终端后端',
+  settingsThemeTitle: '主题',
+  settingsThemeDesc: '内置 restty 主题名（留空 = 跟随应用明暗）',
+  // 浏览器
+  browser: '浏览器',
+  browserTabTitle: '浏览器',
+  browserPlaceholder: '输入网址，例如 example.com',
+  browserGo: '前往',
+  browserBack: '后退',
+  browserForward: '前进',
+  refresh: '刷新',
+  browserStart: '输入网址开始浏览（沙箱模式）',
+  browserBlockedScheme: '已阻止：仅支持 http/https 链接',
+  browserBlockedLoopback: '已阻止：不允许在浏览器中访问本机或内部地址',
+  browserInvalid: '无效的网址',
+  browserOpenExternal: '在浏览器中打开',
+  browserNoSandboxWarning: '沙箱已关闭：当前页面与界面同源，拥有完整会话权限（可在设置中恢复）',
+  browserEmbedBlocked: '{host} 拒绝了嵌入请求',
+  browserEmbedBlockedDesc: '该站点通过 X-Frame-Options / frame-ancestors 禁止在其它页面中显示，无法在侧边栏内加载。可在浏览器中直接打开',
+  browserEmbedAnyway: '仍然加载',
+  sandboxStatusOn: '沙箱模式：已启用 · 页面无法访问界面数据与本地文件，登录态与第三方 Cookie 可能不可用',
+  sandboxUnlock: '临时解锁（不安全）',
+  sandboxRestore: '恢复沙箱',
+  standaloneToggleBrowser: '切换浏览器',
+  standaloneSurfaceTerminal: '终端',
+  standaloneSurfaceBrowser: '浏览器',
+}
+
+const dicts: Record<string, Dict> = { en, zh }
+
+/** The active locale ('en' by default; updated by {@link attachLocale}). */
+let activeLocale = 'en'
+
+/** Resolve the active dictionary (falls back to English). */
+function activeDict(): Dict {
+  return dicts[activeLocale] ?? en
+}
+
+/** Whether the active locale is Chinese. */
+export function isZh(): boolean {
+  return activeLocale === 'zh'
+}
+
+/** Translate one key, substituting `{param}` placeholders. */
+export function t(key: string, params?: Record<string, string>): string {
+  const raw = activeDict()[key] ?? en[key] ?? key
+  if (params === undefined) return raw
+  return raw.replace(/\{(\w+)\}/g, (_m, name: string) => params[name] ?? `{${name}}`)
+}
+
+/** The current active locale. */
+export function getLocale(): string {
+  return activeLocale
+}
+
+/**
+ * Attach the module's locale to the DSH locale service: register the
+ * dictionaries under {@link LOCALE_NS} and keep the module-level locale in
+ * sync with the Host-backed preference. Returns the disposer.
+ */
+export function attachLocale(locale: ResttyLocaleService): () => void {
+  const apply = (): void => {
+    activeLocale = locale.getSnapshot().active === 'zh' ? 'zh' : 'en'
+  }
+  apply()
+  const offZh = locale.register(LOCALE_NS, 'zh', zh)
+  const offEn = locale.register(LOCALE_NS, 'en', en)
+  const offSub = locale.subscribe(apply)
+  return () => { offSub(); offZh(); offEn() }
+}

@@ -1,0 +1,14 @@
+node_modules/
+lib/
+dist/
+coverage/
+# Rust build artifacts
+target/
+# Downloaded / built native PTY binaries (fetched per-platform by scripts/install.sh)
+prebuilt/
+*.node
+*.rs.bk
+# Local env
+.env
+.env.local
+.DS_Store
