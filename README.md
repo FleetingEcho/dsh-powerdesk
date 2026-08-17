@@ -86,9 +86,11 @@ allowBuilds:
 without it, install fails with `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED` and
 `lib/` is never produced. This only needs to be added once per profile.
 
-There's no prebuilt Rust PTY binary distribution yet (no GitHub releases),
-so the terminal will show the repair banner until you build the native addon
-once inside the installed package:
+The Rust PTY binary for `darwin-arm64` (macOS Apple Silicon) is committed
+under `prebuilt/darwin-arm64/` and ships with the git-hosted install, so the
+terminal works immediately on that platform — no Rust toolchain needed. Other
+platforms don't have a committed binary yet; on those the terminal shows the
+repair banner until you build it once inside the installed package:
 
 ```bash
 cd ~/.dsh/profiles/web/node_modules/dsh-powerdesk

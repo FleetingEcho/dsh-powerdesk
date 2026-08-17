@@ -4,10 +4,9 @@ dist/
 coverage/
 # Rust build artifacts
 target/
-# Downloaded / built native PTY binaries (fetched per-platform by scripts/install.sh)
-prebuilt/
-*.node
 *.rs.bk
+# prebuilt/ is intentionally NOT ignored: prebuilt/<triple>/dsh_powerdesk_pty.node
+# is committed so git-hosted installs work without a local Rust toolchain.
 # Local env
 .env
 .env.local
