@@ -39,20 +39,26 @@ system.
 - **DSH** `>=0.0.1` installed and the `dsh` CLI on your `PATH`
   (`dsh --version`). The plugin loads into a DSH profile (default `web`).
 - **Node.js 20+** and **pnpm 9+** if you install from source.
-- **A Rust toolchain** (`rustup`) **only** if you build the PTY addon from
-  source — the official releases ship prebuilt per-platform binaries, so most
-  users never need Rust.
+- **A Rust toolchain** (`rustup`) — only needed if your platform doesn't have
+  a committed prebuilt binary yet (see below); macOS Apple Silicon users never
+  need Rust.
 
-Supported platforms for the prebuilt PTY binary:
+The PTY addon is looked up by platform triple (`src/rust-pty-deps.ts`); only
+one triple currently has a binary committed to the repo (`prebuilt/<triple>/`)
+and shipped with every install:
 
-| OS | Arch | Triple |
-| --- | --- | --- |
-| macOS | Apple Silicon | `darwin-arm64` |
-| macOS | Intel | `darwin-x64` |
-| Linux | x86_64 (glibc) | `linux-x64-gnu` |
-| Linux | aarch64 (glibc) | `linux-arm64-gnu` |
-| Windows | x86_64 | `win32-x64-msvc` |
-| Windows | ARM64 | `win32-arm64-msvc` |
+| OS | Arch | Triple | Prebuilt? |
+| --- | --- | --- | --- |
+| macOS | Apple Silicon | `darwin-arm64` | ✅ committed |
+| macOS | Intel | `darwin-x64` | build from source |
+| Linux | x86_64 (glibc) | `linux-x64-gnu` | build from source |
+| Linux | aarch64 (glibc) | `linux-arm64-gnu` | build from source |
+| Windows | x86_64 | `win32-x64-msvc` | build from source |
+| Windows | ARM64 | `win32-arm64-msvc` | build from source |
+
+Other platforms show the terminal's repair banner after install until
+someone runs `pnpm build:rust` on that platform and commits the resulting
+`prebuilt/<triple>/dsh_powerdesk_pty.node` (see Install below).
 
 ---
 
