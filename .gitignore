@@ -1,12 +1,15 @@
 node_modules/
-lib/
 dist/
 coverage/
 # Rust build artifacts
 target/
 *.rs.bk
-# prebuilt/ is intentionally NOT ignored: prebuilt/<triple>/dsh_powerdesk_pty.node
-# is committed so git-hosted installs work without a local Rust toolchain.
+# lib/ and prebuilt/ are intentionally NOT ignored: the built JS and the
+# darwin-arm64 PTY binary are committed so a github: install needs no build
+# step at all (no `prepare` script, no allowBuilds, no Rust toolchain).
+# Sourcemaps are dev-only, so those alone stay ignored.
+lib/*.map
+lib/**/*.map
 # Local env
 .env
 .env.local

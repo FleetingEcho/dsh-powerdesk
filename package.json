@@ -50,6 +50,8 @@
     "lib/client.js",
     "lib/client-registry.js",
     "lib/client-terminal.js",
+    "lib/client-browser.js",
+    "lib/client-editor.js",
     "lib/types/**/*.d.ts",
     "src",
     "prebuilt",
@@ -66,7 +68,6 @@
     "typecheck": "tsc --noEmit",
     "bundle": "tsdown",
     "watch": "tsdown --watch",
-    "prepare": "tsdown",
     "test": "vitest run",
     "test:watch": "vitest",
     "build:rust": "bash scripts/build-rust.sh"

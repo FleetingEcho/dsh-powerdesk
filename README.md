@@ -72,31 +72,22 @@ GitHub repo.
 ### Option A — from GitHub (recommended)
 
 `dsh plugin` forwards to pnpm *inside the profile directory*, so this fetches
-the repo as a git-hosted package (no local clone needed):
+the repo as a git-hosted package (no local clone, no build step, no extra
+config):
 
 ```bash
 dsh plugin --profile web add "dsh-powerdesk@github:FleetingEcho/dsh-powerdesk"
 ```
 
-The package's `prepare` script (`tsdown`) builds the client/host JS on
-install. **First install on a profile also needs an `allowBuilds` entry** —
-pnpm 11 blocks lifecycle scripts (including `prepare`) for git-hosted
-packages by default:
+That's it. `lib/` (the built client/host JS) is committed to the repo, so
+there's no `prepare`/lifecycle script for pnpm to run — no `allowBuilds`
+entry needed either.
 
-```yaml
-# ~/.dsh/profiles/web/pnpm-workspace.yaml
-allowBuilds:
-  dsh-powerdesk: true
-```
-
-without it, install fails with `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED` and
-`lib/` is never produced. This only needs to be added once per profile.
-
-The Rust PTY binary for `darwin-arm64` (macOS Apple Silicon) is committed
-under `prebuilt/darwin-arm64/` and ships with the git-hosted install, so the
-terminal works immediately on that platform — no Rust toolchain needed. Other
-platforms don't have a committed binary yet; on those the terminal shows the
-repair banner until you build it once inside the installed package:
+The Rust PTY binary for `darwin-arm64` (macOS Apple Silicon) is likewise
+committed under `prebuilt/darwin-arm64/`, so the terminal works immediately
+on that platform — no Rust toolchain needed. Other platforms don't have a
+committed binary yet; on those the terminal shows the repair banner until you
+build it once inside the installed package:
 
 ```bash
 cd ~/.dsh/profiles/web/node_modules/dsh-powerdesk
@@ -259,14 +250,15 @@ session). Clicking a card's body opens that surface in the workbench.
 
 ### Option A (GitHub channel)
 
-Re-add the dependency to pick up the latest commit, then hard-refresh:
+pnpm pins git dependencies to the exact commit it first resolved, so
+re-running `add` with the same spec is a no-op ("Already up to date") even
+after new commits land. Remove then re-add to force re-resolution to the
+latest commit, then hard-refresh:
 
 ```bash
+dsh plugin --profile web remove dsh-powerdesk
 dsh plugin --profile web add "dsh-powerdesk@github:FleetingEcho/dsh-powerdesk"
 ```
-
-This re-runs `prepare` (`tsdown`) against the new commit. If the Rust PTY
-layer changed, rebuild it too (see Install → Option A).
 
 ### Option B (source / git channel)
 
@@ -411,6 +403,14 @@ The client bundle never imports restty or CodeMirror directly — they live in
 lazy chunks (`lib/client-terminal.js`, `lib/client-editor.js`) fetched on
 first use through `/powerdesk/bundle/<name>.js`, keeping the initial bundle
 small (~196 KB).
+
+**`lib/` and `prebuilt/` are committed**, not gitignored — the GitHub-install
+channel (see Install → Option A) is a plain file copy with no build step, so
+whatever is in git *is* what installs. After any source change, run
+`pnpm build` (and `pnpm build:rust` if the Rust layer changed) and commit the
+result before pushing, or GitHub installs will silently ship stale code.
+Sourcemaps (`lib/**/*.map`) stay gitignored — dev-only, not needed at
+install time.
 
 ---
 
