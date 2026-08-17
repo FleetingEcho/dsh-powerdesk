@@ -50,7 +50,7 @@ and shipped with every install:
 | --- | --- | --- | --- |
 | macOS | Apple Silicon | `darwin-arm64` | ✅ committed |
 | macOS | Intel | `darwin-x64` | ✅ committed |
-| Linux | x86_64 (glibc) | `linux-x64-gnu` | build from source |
+| Linux | x86_64 (glibc) | `linux-x64-gnu` | ✅ committed |
 | Linux | aarch64 (glibc) | `linux-arm64-gnu` | build from source |
 | Windows | x86_64 | `win32-x64-msvc` | build from source |
 | Windows | ARM64 | `win32-arm64-msvc` | build from source |
@@ -82,16 +82,22 @@ That's it. `lib/` (the built client/host JS) is committed to the repo, so
 there's no `prepare`/lifecycle script for pnpm to run — no `allowBuilds`
 entry needed either.
 
-The Rust PTY binaries for macOS (`darwin-arm64` and `darwin-x64`) are
-likewise committed under `prebuilt/<triple>/`, so the terminal works
-immediately on both — no Rust toolchain needed. Other platforms don't have a
-committed binary yet; on those the terminal shows the repair banner until you
-build it once inside the installed package:
+The Rust PTY binaries for macOS (both) and Linux x86_64 are likewise
+committed under `prebuilt/<triple>/`, so the terminal works immediately on
+those — no Rust toolchain needed.
+
+<details>
+<summary>Windows or Linux ARM64: no committed binary yet, build it once</summary>
+
+The terminal shows the repair banner after install on these platforms until
+you build the addon once inside the installed package:
 
 ```bash
 cd ~/.dsh/profiles/web/node_modules/dsh-powerdesk
 pnpm build:rust       # needs the Rust toolchain (rustup); cargo build --release
 ```
+
+</details>
 
 ### Option B — from source (for development)
 
