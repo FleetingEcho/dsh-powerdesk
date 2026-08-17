@@ -52,6 +52,7 @@
     "lib/client-terminal.js",
     "lib/types/**/*.d.ts",
     "src",
+    "prebuilt",
     "scripts/install.sh",
     "scripts/install.ps1",
     "scripts/build-rust.sh",
