@@ -40,17 +40,16 @@ system.
   (`dsh --version`). The plugin loads into a DSH profile (default `web`).
 - **Node.js 20+** and **pnpm 9+** if you install from source.
 - **A Rust toolchain** (`rustup`) — only needed if your platform doesn't have
-  a committed prebuilt binary yet (see below); macOS Apple Silicon users never
-  need Rust.
+  a committed prebuilt binary yet (see below); macOS users never need Rust.
 
-The PTY addon is looked up by platform triple (`src/rust-pty-deps.ts`); only
-one triple currently has a binary committed to the repo (`prebuilt/<triple>/`)
+The PTY addon is looked up by platform triple (`src/rust-pty-deps.ts`); two
+triples currently have a binary committed to the repo (`prebuilt/<triple>/`)
 and shipped with every install:
 
 | OS | Arch | Triple | Prebuilt? |
 | --- | --- | --- | --- |
 | macOS | Apple Silicon | `darwin-arm64` | ✅ committed |
-| macOS | Intel | `darwin-x64` | build from source |
+| macOS | Intel | `darwin-x64` | ✅ committed |
 | Linux | x86_64 (glibc) | `linux-x64-gnu` | build from source |
 | Linux | aarch64 (glibc) | `linux-arm64-gnu` | build from source |
 | Windows | x86_64 | `win32-x64-msvc` | build from source |
@@ -83,9 +82,9 @@ That's it. `lib/` (the built client/host JS) is committed to the repo, so
 there's no `prepare`/lifecycle script for pnpm to run — no `allowBuilds`
 entry needed either.
 
-The Rust PTY binary for `darwin-arm64` (macOS Apple Silicon) is likewise
-committed under `prebuilt/darwin-arm64/`, so the terminal works immediately
-on that platform — no Rust toolchain needed. Other platforms don't have a
+The Rust PTY binaries for macOS (`darwin-arm64` and `darwin-x64`) are
+likewise committed under `prebuilt/<triple>/`, so the terminal works
+immediately on both — no Rust toolchain needed. Other platforms don't have a
 committed binary yet; on those the terminal shows the repair banner until you
 build it once inside the installed package:
 
