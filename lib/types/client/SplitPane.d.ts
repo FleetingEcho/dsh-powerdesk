@@ -40,6 +40,12 @@ interface SplitTreeCommonProps {
      *  The empty-state card page's horizontal/vertical radio reads this to
      *  show which option is selected and reorients it via `reorientSplit`. */
     parentSplitDir?: 'row' | 'col';
+    /** Close the WHOLE panel this tree belongs to (right panel or bottom
+     *  panel — see SidebarShell, which passes a different callback per tree).
+     *  Every empty pane shows a closeable "New page" tab now, including the
+     *  ROOT pane (no parent split, so `closePane` has no sibling to promote
+     *  to); closing the root's pseudo-tab collapses the panel instead. */
+    onCloseRoot: () => void;
 }
 /** Recursive split-tree renderer: a leaf becomes a pane, a split becomes a
  *  flex row/col of children with draggable dividers between them. As it

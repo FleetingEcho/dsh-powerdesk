@@ -98,48 +98,98 @@ export function SidebarShell(props: { ctx: Context; store: SidebarStore; service
   const [draggingHeight, setDraggingHeight] = useState(false)
   const bottomOpen = state?.bottomOpen === true
 
+  // The persistent toggle cluster's vertical position: it must always sit in
+  // a real TOP TOOLBAR band, never drift into pane content. Its natural home
+  // is inside the right panel's OWN tab strip (when panelOpen) — the panel's
+  // opaque surface already covers the host header there, so `top: 3` (the
+  // strip's own button inset) is exactly right and collision-free. When the
+  // right panel is CLOSED, the cluster instead floats over the host's own
+  // header, which owns "Session log" in that same corner — so it needs a
+  // bigger offset to clear it. But if the BOTTOM panel is open and tall
+  // enough that its own top edge intrudes above that offset, a fixed offset
+  // would land the cluster INSIDE the bottom panel's pane content instead of
+  // any toolbar at all (reported: the icons appearing next to "Start a new
+  // page") — so clamp to sit just above the bottom panel's own tab strip in
+  // that case. `titleBarStripPx` folds in the Windows caption-strip pref
+  // (see the CSS's now-removed `.toggleCluster` compat rule — handled here
+  // instead, since this position is computed, not static).
+  const [, bumpOnResize] = useState(0)
+  useEffect(() => {
+    const onResize = (): void => { bumpOnResize(n => n + 1) }
+    window.addEventListener('resize', onResize)
+    return () => { window.removeEventListener('resize', onResize) }
+  }, [])
+  const titleBarStripPx = typeof document !== 'undefined' && document.body.hasAttribute('data-dsh-title-bar-compat')
+    ? (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dsh-title-bar-strip')) || 40)
+    : 0
+  const clusterTop = (() => {
+    const DOCKED_TOP = 3 // matches the tab strip's own button inset
+    const HOST_HEADER_CLEAR = 44 // clears the host header's "Session log" control
+    const CLUSTER_ROW = 34 // matches .tabBar's own height
+    if (state === undefined || state.panelOpen) return DOCKED_TOP + titleBarStripPx
+    if (!bottomOpen) return HOST_HEADER_CLEAR + titleBarStripPx
+    const bottomTopY = (typeof window !== 'undefined' ? window.innerHeight : Infinity) - state.bottomHeight
+    return Math.max(DOCKED_TOP, Math.min(HOST_HEADER_CLEAR, bottomTopY - CLUSTER_ROW)) + titleBarStripPx
+  })()
+
   // Push the host app's own content instead of floating the panels over it,
   // so the panels read as "docked" rather than overlaid. The two axes need
-  // DIFFERENT push mechanisms because of how `#root` is sized:
+  // DIFFERENT push mechanisms AND different target elements:
   //
-  //  - RIGHT panel → `margin-right`: `#root` is a block element, so a right
-  //    margin shrinks its content width (blocks consume margin from their
-  //    available width). The host's CSS grid center column (`minmax(0, 1fr)`)
-  //    reflows narrower; the sidebar docks on the right.
+  //  - RIGHT panel → `margin-right` on `#root`: `#root` is a block element,
+  //    so a right margin shrinks its content width (blocks consume margin
+  //    from their available width). The host's CSS grid center column
+  //    (`minmax(0, 1fr)`) reflows narrower while the fixed-width left nav
+  //    column keeps its own width; the sidebar docks on the right without
+  //    touching the nav.
   //
-  //  - BOTTOM panel → `height: calc(100% - H)`, NOT margin-bottom: the DSH
-  //    shell sets `html, body, #root { height: 100% }`, so `#root`'s height is
-  //    EXPLICITLY 100% of the viewport. `margin-bottom` on a height:100%
-  //    element does NOT shrink its content box — it only adds overflow space
-  //    below, leaving the chat input pinned to the viewport bottom and
-  //    covered by the fixed bottom panel (the "can't see the chat box" bug).
-  //    Reducing `#root`'s height instead shrinks the content box, the grid
-  //    reflows shorter, and the chat input moves up above the panel.
+  //  - BOTTOM panel → `height: calc(100% - H)` on the host's CENTER COLUMN
+  //    itself, NOT `#root`. `#root` lays out the left nav and the center
+  //    column as siblings sharing one row (both stretch to `#root`'s full
+  //    height), so shrinking `#root`'s own height shrinks the nav's height
+  //    right along with the chat column — the bottom panel visually
+  //    "taking space from" the nav even though it never overlaps it
+  //    horizontally. Applying the shrink to the center column alone leaves
+  //    the nav at full height and only the chat column yields room. (Not
+  //    `margin-bottom`: the DSH shell sets `html, body, #root { height: 100%
+  //    }`, and a margin on a height:100% element doesn't shrink its content
+  //    box — it only adds overflow space below, leaving the chat input
+  //    pinned to the viewport bottom and covered by the fixed bottom panel.)
   //
   // Both panels still render via `position: fixed` (a body-level portal —
   // see mountSidebarShell); these pushes are what dock them. `#root` is the
-  // SPA's bootstrap convention, independent of the host's own (hashed)
-  // CSS-module classes — deliberately NOT reaching into those for this
-  // push, which could change on any host rebuild. No transition while
-  // dragging (matches `.panel[data-dragging]` / `.bottomPanel[data-dragging]`),
-  // so the push tracks the cursor exactly.
+  // SPA's bootstrap convention; the center column is found the same
+  // substring-class way the left-inset effect below does (see its comment
+  // for why). No transition while dragging (matches
+  // `.panel[data-dragging]` / `.bottomPanel[data-dragging]`), so the push
+  // tracks the cursor exactly.
   useEffect(() => {
     const hostRoot = document.getElementById('root')
     if (hostRoot === null) return
-    hostRoot.style.transition = (draggingWidth || draggingHeight)
+    hostRoot.style.transition = draggingWidth
       ? 'none'
-      : 'margin-right var(--ds-transition-duration-slow) var(--ds-ease-in-out), height var(--ds-transition-duration-slow) var(--ds-ease-in-out)'
+      : 'margin-right var(--ds-transition-duration-slow) var(--ds-ease-in-out)'
     hostRoot.style.marginRight = collapsed ? '0px' : `${String(state?.width ?? 0)}px`
-    // Reserve the bottom panel's height by shrinking #root's height (not a
-    // bottom margin — see the note above). '' restores the shell's
-    // `height: 100%` when the panel is collapsed.
-    hostRoot.style.height = bottomOpen ? `calc(100% - ${String(state?.bottomHeight ?? 0)}px)` : ''
     return () => {
       hostRoot.style.marginRight = ''
-      hostRoot.style.height = ''
       hostRoot.style.transition = ''
     }
-  }, [collapsed, state?.width, bottomOpen, state?.bottomHeight, draggingWidth, draggingHeight])
+  }, [collapsed, state?.width, draggingWidth])
+
+  // Reserve the bottom panel's height on the center column only (see the
+  // note above) — never on `#root`, which would also shrink the left nav.
+  useEffect(() => {
+    const centerCol = document.querySelector<HTMLElement>('[class*="centerCol"]')
+    if (centerCol === null) return
+    centerCol.style.transition = draggingHeight
+      ? 'none'
+      : 'height var(--ds-transition-duration-slow) var(--ds-ease-in-out)'
+    centerCol.style.height = bottomOpen ? `calc(100% - ${String(state?.bottomHeight ?? 0)}px)` : ''
+    return () => {
+      centerCol.style.height = ''
+      centerCol.style.transition = ''
+    }
+  }, [bottomOpen, state?.bottomHeight, draggingHeight])
 
   // The bottom panel's LEFT edge spans from the host's own CENTER COLUMN's
   // left edge (never covering the host's own left nav); its right edge is a
@@ -234,7 +284,7 @@ export function SidebarShell(props: { ctx: Context; store: SidebarStore; service
           collapses the panel. Always pinned (the CSS reserves its space in
           the tab strip's right end), so the entry stays findable even when
           the panel is closed — the user's "no sidebar entry" complaint. */}
-      <div className={css.toggleCluster}>
+      <div className={css.toggleCluster} style={{ top: clusterTop }}>
         <Tooltip label={bottomOpen ? t('collapseBottom') : t('expandBottom')} side="bottom" delayMs={500}>
           <button
             type="button"
@@ -303,6 +353,7 @@ export function SidebarShell(props: { ctx: Context; store: SidebarStore; service
             newTabOptions={newTabOptions}
             onNewTab={onNewTab}
             defaultSplitDir="col"
+            onCloseRoot={() => { store.reduce(togglePanel) }}
           />
         </div>
       </div>
@@ -372,6 +423,7 @@ export function SidebarShell(props: { ctx: Context; store: SidebarStore; service
             newTabOptions={newTabOptions}
             onNewTab={onNewTab}
             defaultSplitDir="row"
+            onCloseRoot={() => { store.reduce(toggleBottomPanel) }}
           />
         </div>
       </div>

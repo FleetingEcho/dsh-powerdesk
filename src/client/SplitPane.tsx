@@ -40,7 +40,6 @@ import {
   type SplitNode,
 } from './state.ts'
 import type { PowerdeskSidebarService, TabComponentProps, TabDescriptor } from './service.ts'
-import { IconCloseFill14 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { TAB_DRAG_TYPE, TabBar, parseDrag, type NewTabOption } from './TabBar.tsx'
 import { t } from './locales.ts'
 import { IconSplitHorizontal16, IconSplitVertical16 } from './icons.tsx'
@@ -67,6 +66,12 @@ interface SplitTreeCommonProps {
    *  The empty-state card page's horizontal/vertical radio reads this to
    *  show which option is selected and reorients it via `reorientSplit`. */
   parentSplitDir?: 'row' | 'col'
+  /** Close the WHOLE panel this tree belongs to (right panel or bottom
+   *  panel — see SidebarShell, which passes a different callback per tree).
+   *  Every empty pane shows a closeable "New page" tab now, including the
+   *  ROOT pane (no parent split, so `closePane` has no sibling to promote
+   *  to); closing the root's pseudo-tab collapses the panel instead. */
+  onCloseRoot: () => void
 }
 
 /**
@@ -179,7 +184,7 @@ function Divider(props: { dir: 'row' | 'col'; splitId: string; index: number; st
 /** One leaf pane: its own tab strip, mounted tab contents, and the
  *  drag-to-edge drop overlay over its content area. */
 function PaneLeaf(props: SplitTreeCommonProps & { leaf: SidebarLeaf }): ReactNode {
-  const { leaf, ctx, store, service, cwd, panelOpen, newTabOptions, onNewTab, defaultSplitDir, parentSplitDir } = props
+  const { leaf, ctx, store, service, cwd, panelOpen, newTabOptions, onNewTab, defaultSplitDir, parentSplitDir, onCloseRoot } = props
   const [dropZone, setDropZone] = useState<DropZone | null>(null)
 
   const descriptorOf = useCallback((tab: SidebarTab): TabDescriptor | undefined => service.getTab(tab.type), [service])
@@ -227,15 +232,37 @@ function PaneLeaf(props: SplitTreeCommonProps & { leaf: SidebarLeaf }): ReactNod
     store.reduce(s => reorientSplit(s, leaf.id, dir))
   }, [store, leaf.id])
 
-  // The empty-state card page's close button: dismiss this empty pane — undo
-  // the "+" split by removing the leaf (its sibling is promoted, reclaiming
-  // the full width/height) and move focus to that surviving pane. Mirrors the
-  // radio's gate: hidden for a root leaf (the welcome pane isn't closeable —
-  // closing it would empty the panel's only pane). Only an EMPTY pane shows
-  // the card page, so this never closes a pane that holds tabs.
+  // The empty-state card page's close: dismiss this empty pane — undo the
+  // "+" split by removing the leaf (its sibling is promoted, reclaiming the
+  // full width/height) and move focus to that surviving pane. Wired to the
+  // TAB STRIP's pseudo-tab close button (TabBar's `emptyTab` prop) — closing
+  // the card page now works exactly like closing any other tab, rather than
+  // a bespoke button floating in the card grid's own header. Only an EMPTY
+  // pane shows the card page, so this never closes a pane that holds tabs.
   const onClosePane = useCallback((): void => {
     store.reduce(s => closePane(s, leaf.id))
   }, [store, leaf.id])
+
+  // EVERY empty pane's pseudo-tab gets a close button — including the ROOT
+  // pane (no parent split, so `closePane` has no sibling to promote to).
+  // For the root, "close" instead collapses the whole panel it belongs to
+  // (right panel or bottom panel — `onCloseRoot` is wired per-tree in
+  // SidebarShell): there is no pane left to show, so hiding the panel is
+  // the only sensible "close" for it.
+  const emptyTab = { label: t('newPane'), onClose: parentSplitDir !== undefined ? onClosePane : onCloseRoot }
+
+  // Closing a REAL tab (not the empty-pane pseudo-tab above) normally just
+  // leaves this pane showing the card grid — fine for a split pane, but for
+  // the ROOT pane (no parent, nothing else in the panel) that reproduces the
+  // "empty root pane sits there" complaint one step later: close the only
+  // open tab and you're back to a page with nothing to close. So closing the
+  // LAST tab of a parent-less (root) pane collapses the panel the same way
+  // its empty pseudo-tab's close does.
+  const onCloseTab = useCallback((tabId: string): void => {
+    const isLastTab = parentSplitDir === undefined && leaf.tabs.length === 1 && leaf.tabs[0]!.id === tabId
+    store.reduce(s => closeTab(s, leaf.id, tabId))
+    if (isLastTab) onCloseRoot()
+  }, [store, leaf.id, leaf.tabs, parentSplitDir, onCloseRoot])
 
   return (
     <div className={clsx(css.pane, dropZone !== null && css.paneDrop)}>
@@ -244,13 +271,14 @@ function PaneLeaf(props: SplitTreeCommonProps & { leaf: SidebarLeaf }): ReactNod
         tabs={leaf.tabs}
         active={leaf.active}
         onActivate={(tabId) => { store.reduce(s => activateTab(s, leaf.id, tabId)) }}
-        onClose={(tabId) => { store.reduce(s => closeTab(s, leaf.id, tabId)) }}
+        onClose={onCloseTab}
         onNewPane={onNewPane}
         getTabIcon={tabIconOf}
         onDropTab={(payload, before) => {
           const index = before === null ? -1 : leaf.tabs.findIndex(tab => tab.id === before)
           store.reduce(s => moveTab(s, payload.paneId, payload.tabId, leaf.id, index))
         }}
+        emptyTab={emptyTab}
       />
       {leaf.tabs.length > 0 ? (
         <div
@@ -296,11 +324,12 @@ function PaneLeaf(props: SplitTreeCommonProps & { leaf: SidebarLeaf }): ReactNod
               <h2 className={css.paneEmptyHeading}>{t('newPaneHeading')}</h2>
               <p className={css.paneEmptySubheading}>{t('newPaneSubheading')}</p>
             </div>
-            {/* Header controls (right-aligned): the horizontal/vertical layout
-                radio and the close button. Both are gated on the leaf having a
+            {/* The horizontal/vertical layout radio, gated on the leaf having a
                 parent split — a root leaf (the welcome pane, no parent) has
-                nothing to reorient and nothing to close (closing it would empty
-                the panel's only pane), so the whole cluster is hidden there. */}
+                nothing to reorient, so it's hidden there. The close control
+                used to live in this cluster too; it now lives in the tab
+                strip above (TabBar's `emptyTab` pseudo-tab), matching every
+                other tab's close instead of floating over page content. */}
             {parentSplitDir !== undefined && (
               <div className={css.paneEmptyControls}>
                 {/* Horizontal/vertical layout radio: reorients the split that owns
@@ -330,19 +359,6 @@ function PaneLeaf(props: SplitTreeCommonProps & { leaf: SidebarLeaf }): ReactNod
                     <IconSplitVertical16 />
                   </button>
                 </div>
-                {/* Close: dismiss this empty pane — undo the "+" split (the
-                    sibling is promoted, reclaiming the full space) and move
-                    focus to it. Lets the user back out of a "+" without
-                    picking a card. */}
-                <button
-                  type="button"
-                  className={css.paneCloseButton}
-                  aria-label={t('closePane')}
-                  title={t('closePane')}
-                  onClick={() => { onClosePane() }}
-                >
-                  <IconCloseFill14 />
-                </button>
               </div>
             )}
           </div>

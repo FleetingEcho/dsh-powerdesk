@@ -75,9 +75,18 @@ export function TabBar(props: {
   /** Badge resolver for tab labels (reads the descriptor's `badge`; the
    *  resolver returns the rendered pill or null). */
   getTabBadge?: (tab: SidebarTab) => ReactNode
+  /** When this pane is empty (showing the "start a new page" card grid) but
+   *  closeable (it has a parent split), render ONE pseudo-tab standing in for
+   *  the card page itself — same look as a real tab, including its own close
+   *  button — instead of a bespoke close control buried in the card grid's
+   *  header (which read as "in the wrong place": a stray icon floating over
+   *  page content instead of living where every other tab's close lives).
+   *  Closing it removes the PANE (there is no real tab to close). Omitted
+   *  entirely for the root pane (nothing to close). */
+  emptyTab?: { label: string; onClose: () => void }
 }) {
   const {
-    paneId, tabs, active, onActivate, onClose, onNewPane, onDropTab, getTabIcon, getTabBadge,
+    paneId, tabs, active, onActivate, onClose, onNewPane, onDropTab, getTabIcon, getTabBadge, emptyTab,
   } = props
   const [dragOver, setDragOver] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
@@ -183,6 +192,22 @@ export function TabBar(props: {
             </button>
           </div>
         ))}
+        {tabs.length === 0 && emptyTab !== undefined && (
+          <div className={clsx(css.tab, css.tabActive)} title={emptyTab.label}>
+            <span className={css.tabTitle}>{emptyTab.label}</span>
+            <button
+              type="button"
+              className={css.tabClose}
+              aria-label={t('closePane')}
+              onClick={(event) => {
+                event.stopPropagation()
+                emptyTab.onClose()
+              }}
+            >
+              <IconCloseFill14 />
+            </button>
+          </div>
+        )}
         {/*
           The + sits immediately after the rightmost tab (sticky at the
           right edge of the scrollport when the tabs overflow, so it stays
