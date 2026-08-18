@@ -44,12 +44,24 @@ importers:
       '@lezer/highlight':
         specifier: ^1.2.3
         version: 1.2.3
+      '@preact/signals':
+        specifier: ^2.11.1
+        version: 2.11.1(preact@10.29.8)
       '@radix-ui/react-label':
         specifier: ^2.1.15
         version: 2.1.15(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.2.0(react@18.3.1))(react@18.3.1)
       '@radix-ui/react-select':
         specifier: ^2.3.7
         version: 2.3.7(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.2.0(react@18.3.1))(react@18.3.1)
+      '@schedule-x/calendar':
+        specifier: ^4.6.1
+        version: 4.6.1(@preact/signals@2.11.1(preact@10.29.8))(preact@10.29.8)(temporal-polyfill@0.3.0)
+      '@schedule-x/current-time':
+        specifier: ^4.6.1
+        version: 4.6.1
+      '@schedule-x/theme-default':
+        specifier: ^4.6.1
+        version: 4.6.1
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -59,12 +71,18 @@ importers:
       lucide-react:
         specifier: ^1.31.0
         version: 1.31.0(react@18.3.1)
+      preact:
+        specifier: ^10.29.8
+        version: 10.29.8
       restty:
         specifier: ^0.2.6
         version: 0.2.6
       schemastery:
         specifier: ^3.18.0
         version: 3.18.0
+      temporal-polyfill:
+        specifier: ^0.3.0
+        version: 0.3.0
       ws:
         specifier: ^8.18.0
         version: 8.21.3
@@ -815,6 +833,14 @@ packages:
   '@oxc-project/types@0.144.0':
     resolution: {integrity: sha512-nuhZIOLuI6TFQ32I/WnUx+SCPY7SdSKwgnFHydAuoS1+Z4BRcaP+RRJmGzl9lw+0OFF7UmaESf7KQRXaNLHypg==}
 
+  '@preact/signals-core@1.14.4':
+    resolution: {integrity: sha512-HNB6HYeYKhQbJ1aKl+YRjrS4+QWHLKX6qKoUsfS/m0vqzsVaEBiZiaKbG/e+NKk2ch5ALQr/ihWaMHxiCuuWHA==}
+
+  '@preact/signals@2.11.1':
+    resolution: {integrity: sha512-uYoD+USkacTNU02kfCBkJEV7xabKTmA78W5pnT2GymsuGEC9n/ZO+UT4S96l0dIL6KLDk77VJyUFuOMBvftVHg==}
+    peerDependencies:
+      preact: '>= 10.25.0 || >=11.0.0-0'
+
   '@quansync/fs@1.0.0':
     resolution: {integrity: sha512-4TJ3DFtlf1L5LDMaM6CanJ/0lckGNtJcMjQ1NAV6zDmA0tEHKZtxNKin8EgPaVX1YzljbxckyT2tJrpQKAtngQ==}
 
@@ -1179,6 +1205,19 @@ packages:
 
   '@rolldown/pluginutils@1.0.1':
     resolution: {integrity: sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==}
+
+  '@schedule-x/calendar@4.6.1':
+    resolution: {integrity: sha512-qJ1CPtflvTycsBREGt8jYEeeCYPekZS1w32GAgp7SDw/NoRk1qiY6vmE2++d2KwefZoSCsETw7A6tQorCwg+SA==}
+    peerDependencies:
+      '@preact/signals': ^2.0.2
+      preact: ^10.19.2
+      temporal-polyfill: 0.3.0
+
+  '@schedule-x/current-time@4.6.1':
+    resolution: {integrity: sha512-mfjqWcoKntG65W+kjV9wl2Dr/oRjGoQfiEMivLUvYizuihwPqHjhhJTMaT3/cyalu/JlasOrOrpQ6cj6N399Vw==}
+
+  '@schedule-x/theme-default@4.6.1':
+    resolution: {integrity: sha512-kjdMDRc3y+45NpNqHDhd0flfepyCbBKooYiDPI1eRC+1medBYJLQPBtR8mcnVL63MzN6NqwEuWY+YJPdIj+gUA==}
 
   '@shikijs/core@4.4.3':
     resolution: {integrity: sha512-QCR4q2ZO/ILJEuwiBMel4wdcTDb1JGwfjKTxPDF6x8ixOaluPrVqIn06C99AcRPhmYlBR56d/Fb+GN58GzExpg==}
@@ -1906,6 +1945,14 @@ packages:
     resolution: {integrity: sha512-DTPx3RWSSnWyzLxQnlH0rJP+EW5ekl16ZU4/psbIhA0e53kJfdgaN5vKM+xP7yJtXVu+nfdVFmlgFDEKAe4Pyw==}
     engines: {node: ^10 || ^12 || >=14}
 
+  preact@10.29.8:
+    resolution: {integrity: sha512-ej2aVZ+vZ8WO7tvlQWRM9N63A0KzF9q4mWJfDUHgYaIofWY9hu74QdnQrjoPMmZi2/nZ5gN0bJCQF49xQqx09Q==}
+    peerDependencies:
+      preact-render-to-string: '>=5'
+    peerDependenciesMeta:
+      preact-render-to-string:
+        optional: true
+
   property-information@7.2.0:
     resolution: {integrity: sha512-IAtzIB6sUiWaJYrX9smp3V46pBGbBeLFRGdh25kg1334VcBlD8HzhPeNIWQH9zhGmo2itIe25EHt9dQP7G5hmg==}
 
@@ -2037,6 +2084,12 @@ packages:
 
   symbol-tree@3.2.4:
     resolution: {integrity: sha512-9QNk5KwDF+Bvz+PyObkmSYjI5ksVUYtjW7AU22r2NKcfLJcXp96hkDWU3+XndOsUb+AQ9QhfzfCT2O+CNWT5Tw==}
+
+  temporal-polyfill@0.3.0:
+    resolution: {integrity: sha512-qNsTkX9K8hi+FHDfHmf22e/OGuXmfBm9RqNismxBrnSmZVJKegQ+HYYXT+R7Ha8F/YSm2Y34vmzD4cxMu2u95g==}
+
+  temporal-spec@0.3.0:
+    resolution: {integrity: sha512-n+noVpIqz4hYgFSMOSiINNOUOMFtV5cZQNCmmszA6GiVFVRt3G7AqVyhXjhCSmowvQn+NsGn+jMDMKJYHd3bSQ==}
 
   text-shaper@0.1.28:
     resolution: {integrity: sha512-uwm6+tkgYJ4hsTV0wZVHkZeoXR1/mthLxDiJvfU9o/FiibNinpFRC8PAMTNx8SaOjaK/5ZjDG1XAkPbKlIe2Jg==}
@@ -3196,6 +3249,13 @@ snapshots:
 
   '@oxc-project/types@0.144.0': {}
 
+  '@preact/signals-core@1.14.4': {}
+
+  '@preact/signals@2.11.1(preact@10.29.8)':
+    dependencies:
+      '@preact/signals-core': 1.14.4
+      preact: 10.29.8
+
   '@quansync/fs@1.0.0':
     dependencies:
       quansync: 1.0.0
@@ -3474,6 +3534,16 @@ snapshots:
     optional: true
 
   '@rolldown/pluginutils@1.0.1': {}
+
+  '@schedule-x/calendar@4.6.1(@preact/signals@2.11.1(preact@10.29.8))(preact@10.29.8)(temporal-polyfill@0.3.0)':
+    dependencies:
+      '@preact/signals': 2.11.1(preact@10.29.8)
+      preact: 10.29.8
+      temporal-polyfill: 0.3.0
+
+  '@schedule-x/current-time@4.6.1': {}
+
+  '@schedule-x/theme-default@4.6.1': {}
 
   '@shikijs/core@4.4.3':
     dependencies:
@@ -4298,6 +4368,8 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
+  preact@10.29.8: {}
+
   property-information@7.2.0: {}
 
   punycode@2.3.1: {}
@@ -4435,6 +4507,12 @@ snapshots:
   style-mod@4.1.3: {}
 
   symbol-tree@3.2.4: {}
+
+  temporal-polyfill@0.3.0:
+    dependencies:
+      temporal-spec: 0.3.0
+
+  temporal-spec@0.3.0: {}
 
   text-shaper@0.1.28: {}
 

@@ -242,7 +242,7 @@ function makeCssPlugin(pluginId: string): BuildPlugin {
 }
 
 /** The lazy chunk names (keep in sync with src/bundle-route.ts CHUNK_NAMES). */
-const CHUNKS = ['terminal', 'browser', 'editor', 'settings']
+const CHUNKS = ['terminal', 'browser', 'editor', 'settings', 'calendar']
 
 export default [
   {

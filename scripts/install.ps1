@@ -92,6 +92,31 @@ function Ensure-Ripgrep([string]$PluginRoot, [string]$Tag) {
   Write-Warning 'ripgrep prebuilt download failed; search-deps.ts will fall back to a `rg` on PATH, if any.'
 }
 
+# SQLite (Calendar tab): same napi binary convention as the PTY, but
+# non-fatal — rust-sqlite-deps.ts puts the Calendar tab into degraded mode
+# (a repair banner) when the binary is missing, so a download failure only
+# warns. Build from source with scripts/build-rust-sqlite.sh (needs Rust).
+function Download-Sqlite([string]$Tag, [string]$DestDir) {
+  $triple = Detect-Triple
+  $url = "$PREBUILT_BASE/$Tag/dsh_powerdesk_sqlite-$triple.node"
+  if ($DryRun) { Write-Host "[dry-run] would download $url -> $DestDir\dsh_powerdesk_sqlite.node"; return $true }
+  New-Item -ItemType Directory -Force -Path $DestDir | Out-Null
+  Write-Host "Downloading prebuilt SQLite binary: $url"
+  try {
+    Invoke-WebRequest -Uri $url -OutFile (Join-Path $DestDir 'dsh_powerdesk_sqlite.node') -UseBasicParsing
+    return $true
+  } catch {
+    Write-Warning "SQLite prebuilt download failed: $_"
+    return $false
+  }
+}
+
+function Ensure-Sqlite([string]$PluginRoot, [string]$Tag) {
+  $dest = Join-Path $PluginRoot "prebuilt\$(Detect-Triple)"
+  if (Download-Sqlite $Tag $dest) { return }
+  Write-Warning 'SQLite prebuilt download failed; the Calendar tab will show a repair banner. Build from source with scripts/build-rust-sqlite.sh (needs Rust).'
+}
+
 # ── Repair ──────────────────────────────────────────────────────────────────
 if ($Repair) {
   $dshHome = if ($env:DSH_HOME) { $env:DSH_HOME } else { Join-Path $env:USERPROFILE '.dsh' }
@@ -103,6 +128,7 @@ if ($Repair) {
   $tag = if ($ver) { "v$ver" } else { Resolve-Tag }
   Ensure-Prebuilt $pluginRoot $tag
   Ensure-Ripgrep $pluginRoot $tag
+  Ensure-Sqlite $pluginRoot $tag
   Write-Host 'Repair complete. Restart DSH and hard-refresh the page.'
   return
 }
@@ -131,6 +157,7 @@ if (-not (Test-Path $pluginRoot)) {
 } else {
   Ensure-Prebuilt $pluginRoot $tag
   Ensure-Ripgrep $pluginRoot $tag
+  Ensure-Sqlite $pluginRoot $tag
 }
 
 Write-Host "Install complete: $PKG@$Version"

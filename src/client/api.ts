@@ -44,6 +44,33 @@ export type SearchDepsStatus =
     note?: string
   }
 
+/** One calendar event (mirror of the host's CalendarEvent; mirrors schedule-x). */
+export interface CalendarEvent {
+  id: string
+  title?: string
+  /** ISO datetime string, e.g. '2026-08-18 10:00' or '2026-08-18T10:00:00'. */
+  start: string
+  end: string
+  location?: string
+  description?: string
+  calendarId?: string
+}
+
+/** SQLite native-binary dependency status (mirror of the host's RustSqliteDepsStatus). */
+export type CalendarDepsStatus =
+  | { ok: true }
+  | {
+    ok: false
+    /** The load-time error message (module missing, native binding broken…). */
+    cause: string
+    /** The pasteable repair command (terminal/cmd). */
+    command: string
+    /** The detected profile name (null when undetected). */
+    profile: string | null
+    /** Optional supplementary hint. */
+    note?: string
+  }
+
 /** One content-search match (mirror of the host's SearchMatch). */
 export interface SearchMatch {
   line: number
@@ -241,6 +268,22 @@ export const api = {
    *  directly rather than reacting to a socket close). */
   searchDeps: (signal?: AbortSignal) =>
     call<SearchDepsStatus>('search.deps', {}, signal),
+  /** List all calendar events, earliest first (Calendar tab). */
+  calendarList: (signal?: AbortSignal) =>
+    call<{ events: CalendarEvent[] }>('calendar.list', {}, signal),
+  /** Create a calendar event (Calendar tab). Returns the created event. */
+  calendarCreate: (event: CalendarEvent, signal?: AbortSignal) =>
+    call<{ event: CalendarEvent }>('calendar.create', { ...event }, signal),
+  /** Update a calendar event by id (Calendar tab). Returns the changed-row count. */
+  calendarUpdate: (event: CalendarEvent, signal?: AbortSignal) =>
+    call<{ changes: number }>('calendar.update', { ...event }, signal),
+  /** Delete a calendar event by id (Calendar tab). Returns the changed-row count. */
+  calendarDelete: (id: string, signal?: AbortSignal) =>
+    call<{ changes: number }>('calendar.delete', { id }, signal),
+  /** SQLite native-binary dependency status: fetched when the Calendar tab
+   *  needs to show a repair banner (same pattern as searchDeps). */
+  calendarDeps: (signal?: AbortSignal) =>
+    call<CalendarDepsStatus>('calendar.deps', {}, signal),
   /** Installed extensions plus the config gate (answers even when disabled,
    *  so the settings card can explain why nothing loads). */
   extList: (signal?: AbortSignal) =>

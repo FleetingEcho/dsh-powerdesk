@@ -1,6 +1,6 @@
 import type { Context, ResttyHttpRequest, ResttyHttpResponse } from './context-types.ts';
 /** The chunk names the client may request (mirror of src/client/chunk-loader.ts). */
-export declare const CHUNK_NAMES: readonly ["terminal", "browser", "editor", "settings"];
+export declare const CHUNK_NAMES: readonly ["terminal", "browser", "editor", "settings", "calendar"];
 export type ChunkName = (typeof CHUNK_NAMES)[number];
 /** How the route resolves user-installed extension bundles. */
 export interface ExtensionBundleSource {

@@ -4,9 +4,10 @@
 
 A [DSH](https://github.com/deepseek-ai/dsh) web plugin that adds a small IDE
 workbench to the DSH web UI: a GPU-accelerated **terminal**, a **file
-explorer**, a **notes** app, a **code editor**, and a sandboxed **browser** —
-all self-contained, in a dockable right panel *and* a dockable bottom panel
-(VSCode-style dual workbench, with drag-to-split and drag-between-panels).
+explorer**, a **notes** app, a **code editor**, a sandboxed **browser**, and a
+**calendar** — all self-contained, in a dockable right panel *and* a dockable
+bottom panel (VSCode-style dual workbench, with drag-to-split and
+drag-between-panels).
 
 - **Terminal** — rendered with [restty](https://github.com/wiedymi/restty)
   (WebGPU/WebGL2 + WASM VT, Ghostty-lineage) and backed by a **Rust PTY**
@@ -27,8 +28,12 @@ all self-contained, in a dockable right panel *and* a dockable bottom panel
 - **Browser** — a sandboxed iframe behind an address bar, with an
   embeddability probe that explains `X-Frame-Options` / `frame-ancestors`
   refusals instead of showing a blank "refused to connect" frame.
+- **Calendar** — a [schedule-x](https://schedule-x.dev) calendar (Month / Week
+  / Day) over a local SQLite database (a new Rust napi module with bundled
+  SQLite, sibling to the PTY crate), lazy-loaded so it never weighs down
+  startup. Events persist at `<profile-dir>/powerdesk-calendar.db`.
 
-All five surface as tabs in the plugin's own sidebar — a **right panel**
+All six surface as tabs in the plugin's own sidebar — a **right panel**
 (width freely draggable, no cap) and a **bottom panel** (height draggable,
 spans the full window width including under the right panel).
 
@@ -143,6 +148,10 @@ Type a URL in the address bar and press Enter. Back / forward / refresh / open-i
 - **Address bar** — only `http`/`https` are accepted; `javascript:`, `data:`, `file:` are refused. Loopback addresses (`localhost`, `127.0.0.0/8`, `::1`, `0.0.0.0`) are refused so a browsed page cannot probe your local services.
 - **Embed refusals** — when a site sets `X-Frame-Options` / a `frame-ancestors` CSP that blocks embedding, the plugin probes the headers first and shows a reason panel with **"Open in browser"** and **"Load anyway"** instead of a blank frame. This is a browser-enforced, per-site restriction; "Open in browser" is the only way to view such a site from here.
 - **External links** — the browser tab claims `http://` external-link clicks (so an http link in chat opens in the sidebar); `https://` is left to the system browser.
+
+### Calendar
+
+A schedule-x calendar (Month / Week / Day views) over a local SQLite database. Click **New event** to create (title via prompt), drag to move/resize, click an event to confirm-delete. The DB lives at `<profile-dir>/powerdesk-calendar.db`, so events survive restarts and plugin updates. The tab is lazy-loaded — schedule-x + its preact runtime only download on first open, never at startup — and degrades to a repair banner when the platform's SQLite native binary is missing.
 
 ### Settings
 

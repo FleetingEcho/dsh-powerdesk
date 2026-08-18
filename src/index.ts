@@ -37,6 +37,8 @@ import { extractFrameAncestors } from './browser-probe.ts'
 import { fsCreate, fsDelete, fsHome, fsList, fsListMarkdownTree, fsMkdir, fsRead, fsRename, fsWrite } from './fs-api.ts'
 import { searchGrep } from './search-api.ts'
 import { searchDepsStatus } from './search-deps.ts'
+import { calendarCreate, calendarDelete, calendarList, calendarUpdate } from './calendar-api.ts'
+import { sqliteDepsStatus } from './rust-sqlite-deps.ts'
 import {
   PTY_DEPS_MISSING,
   depsStatus,
@@ -218,6 +220,21 @@ function buildApi(
       })
     },
     'search.deps': () => searchDepsStatus(),
+    // Calendar tab: CRUD over a local SQLite DB (see calendar-api.ts /
+    // rust-sqlite-deps.ts). `calendar.deps` mirrors `terminal.deps` /
+    // `search.deps` — the client fetches it to show a repair banner when the
+    // SQLite native binary is missing.
+    'calendar.list': () => calendarList(),
+    'calendar.create': (payload) => {
+      const record = payload as Partial<Record<string, unknown>> | null
+      return calendarCreate(record ?? {})
+    },
+    'calendar.update': (payload) => {
+      const record = payload as Partial<Record<string, unknown>> | null
+      return calendarUpdate(record ?? {})
+    },
+    'calendar.delete': (payload) => calendarDelete(requireString(payload, 'id')),
+    'calendar.deps': () => sqliteDepsStatus(),
     // ── User-installed extensions ─────────────────────────────────────────
     // `ext.list` answers even while the feature is disabled, so the settings
     // card can explain WHY nothing loads instead of rendering an empty list.

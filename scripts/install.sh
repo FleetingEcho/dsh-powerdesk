@@ -165,6 +165,39 @@ ensure_ripgrep() {
   warn "ripgrep 预编译二进制下载失败；search-deps.ts 会回退到 PATH 上的 rg（如果有的话）。"
 }
 
+# SQLite（Calendar 标签页用）：与 PTY 同样的 napi 二进制，但非致命 ——
+# rust-sqlite-deps.ts 在找不到二进制时让日历标签页进入降级模式（显示修复
+# 横幅），所以下载失败只警告，不中断安装。失败时可改用
+# scripts/build-rust-sqlite.sh 从源码构建（需要 Rust 工具链）。
+download_sqlite() {
+  local tag="$1" dest_dir="$2"
+  local url="$PREBUILT_BASE/$tag/dsh_powerdesk_sqlite-$TRIPLE.node"
+  mkdir -p "$dest_dir"
+  if [ "$DRY_RUN" = true ]; then
+    say "[dry-run] 将下载 $url -> $dest_dir/dsh_powerdesk_sqlite.node"
+    return
+  fi
+  say "下载预编译 SQLite 二进制：$url"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL "$url" -o "$dest_dir/dsh_powerdesk_sqlite.node" || return 1
+  elif command -v wget >/dev/null 2>&1; then
+    wget -qO "$dest_dir/dsh_powerdesk_sqlite.node" "$url" || return 1
+  else
+    return 1
+  fi
+  chmod +x "$dest_dir/dsh_powerdesk_sqlite.node" 2>/dev/null || true
+  say "已安装 $dest_dir/dsh_powerdesk_sqlite.node"
+}
+
+ensure_sqlite() {
+  local plugin_root="$1" tag="$2"
+  local dest="$plugin_root/prebuilt/$TRIPLE"
+  if download_sqlite "$tag" "$dest"; then
+    return 0
+  fi
+  warn "SQLite 预编译二进制下载失败；日历标签页将进入降级模式（显示修复横幅）。可用 scripts/build-rust-sqlite.sh 从源码构建。"
+}
+
 # ── 修复模式：只重装二进制 ─────────────────────────────────────────────────
 if [ "$REPAIR" = true ]; then
   DSH_HOME="${DSH_HOME:-$HOME/.dsh}"
@@ -176,6 +209,7 @@ if [ "$REPAIR" = true ]; then
   TAG="v$(node -p "require('$PLUGIN_ROOT/package.json').version" 2>/dev/null || echo latest)"
   ensure_prebuilt "$PLUGIN_ROOT" "$TAG"
   ensure_ripgrep "$PLUGIN_ROOT" "$TAG"
+  ensure_sqlite "$PLUGIN_ROOT" "$TAG"
   say "修复完成。请重启 DSH 并硬刷新页面。"
   exit 0
 fi
@@ -205,6 +239,7 @@ if [ ! -d "$PLUGIN_ROOT" ]; then
 else
   ensure_prebuilt "$PLUGIN_ROOT" "$TAG"
   ensure_ripgrep "$PLUGIN_ROOT" "$TAG"
+  ensure_sqlite "$PLUGIN_ROOT" "$TAG"
 fi
 
 say "安装完成：$PKG@$VERSION_SPEC"

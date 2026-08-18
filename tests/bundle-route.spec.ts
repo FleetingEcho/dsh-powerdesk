@@ -89,8 +89,8 @@ describe('bundle-route handler', () => {
     expect(out.status).toBe(404)
   })
 
-  it('CHUNK_NAMES is exactly [terminal, browser, editor, settings]', () => {
-    expect([...CHUNK_NAMES]).toEqual(['terminal', 'browser', 'editor', 'settings'])
+  it('CHUNK_NAMES is exactly [terminal, browser, editor, settings, calendar]', () => {
+    expect([...CHUNK_NAMES]).toEqual(['terminal', 'browser', 'editor', 'settings', 'calendar'])
   })
 
   it('304s a matching If-None-Match instead of resending the body', async () => {

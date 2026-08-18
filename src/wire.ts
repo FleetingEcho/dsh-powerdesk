@@ -15,6 +15,8 @@ export type ResttyErrorCode =
   | 'pty-error'
   | 'pty-deps-missing'
   | 'search-deps-missing'
+  | 'sqlite-deps-missing'
+  | 'calendar-no-profile'
   | 'internal'
 
 /** One API failure with its wire code and HTTP status. */

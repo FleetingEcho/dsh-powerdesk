@@ -1,0 +1,25 @@
+[package]
+name = "dsh-powerdesk-sqlite"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Rust SQLite native module (napi-rs + rusqlite bundled) for the dsh-powerdesk DSH plugin."
+publish = false
+
+[lib]
+name = "dsh_powerdesk_sqlite"
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { version = "2", default-features = false, features = ["napi8", "serde-json"] }
+napi-derive = "2"
+rusqlite = { version = "0.40", features = ["bundled"] }
+serde_json = "1"
+
+[build-dependencies]
+napi-build = "2"
+
+[profile.release]
+lto = true
+opt-level = 3
+codegen-units = 1

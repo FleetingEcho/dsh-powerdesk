@@ -41,6 +41,7 @@ import type { ResttyTerminalProps } from './ResttyTerminal.tsx'
 import type { BrowserViewProps } from './BrowserView.tsx'
 import type { CodeEditorProps } from './CodeEditor.tsx'
 import type { NotesViewProps } from './NotesView.tsx'
+import type { CalendarViewProps } from './CalendarView.tsx'
 import { SidebarShell } from './SidebarShell.tsx'
 import { RenderBoundary } from './RenderBoundary.tsx'
 import { SettingsSection } from './SettingsSection.tsx'
@@ -53,6 +54,8 @@ export const POWERDESK_BROWSER_TAB_ID = 'dsh-powerdesk:browser'
 export const POWERDESK_EXPLORER_TAB_ID = EXPLORER_TAB_ID
 /** The tab id for the Notes tab (the SidebarTab.type value). */
 export const POWERDESK_NOTES_TAB_ID = 'dsh-powerdesk:notes'
+/** The tab id for the calendar surface. */
+export const POWERDESK_CALENDAR_TAB_ID = 'dsh-powerdesk:calendar'
 /** The tab id for the editor. MUST stay literally 'editor' — service.ts's
  *  `openFile()` hardcodes `type: 'editor'` when it mints a file-open tab. */
 const EDITOR_TAB_ID = 'editor'
@@ -82,6 +85,14 @@ const CodeEditorLazy = lazyChunkComponent<CodeEditorProps>(
 const NotesViewLazy = lazyChunkComponent<NotesViewProps>(
   'editor',
   (mod) => mod.NotesView as ComponentType<NotesViewProps> | undefined,
+)
+
+/** The lazy Calendar view (schedule-x + preact + temporal-polyfill load on
+ *  first calendar-open; lives in its own 'calendar' chunk so it never weighs
+ *  down startup — most sessions never open the calendar). */
+const CalendarViewLazy = lazyChunkComponent<CalendarViewProps>(
+  'calendar',
+  (mod) => mod.CalendarView as ComponentType<CalendarViewProps> | undefined,
 )
 
 /** Module-level monotonic counters for tab ids (one source of truth across
@@ -135,6 +146,17 @@ function IconNotes({ size }: { size: number }): ReactNode {
     <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <rect x="2.25" y="1.75" width="11.5" height="12.5" rx="1.5" stroke="currentColor" strokeWidth="1.25" />
       <path d="M5 5h6M5 8h6M5 11h3.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+/** A small calendar-glyph icon (no ui-primitives dependency). */
+function IconCalendar({ size }: { size: number }): ReactNode {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <rect x="2.25" y="3.25" width="11.5" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.25" />
+      <path d="M2.25 6.5h11.5" stroke="currentColor" strokeWidth="1.25" />
+      <path d="M5 1.75v2.5M11 1.75v2.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
     </svg>
   )
 }
@@ -354,6 +376,34 @@ function buildNotesTabDescriptor(): TabDescriptor {
   return descriptor as unknown as TabDescriptor
 }
 
+/** The sidebar Calendar tab view: mounts the lazy schedule-x surface (Month /
+ *  Week / Day over a SQLite-backed event store — see CalendarView.tsx). */
+function CalendarTabView(props: TabComponentProps): ReactNode {
+  const { visible } = props as { visible?: boolean }
+  return createElement(CalendarViewLazy, { visible: visible ?? true })
+}
+
+/** Build the Calendar tab descriptor. `single: true` — one Calendar tab per
+ *  session; opening it again focuses the existing one instead of duplicating. */
+function buildCalendarTabDescriptor(): TabDescriptor {
+  const descriptor = {
+    id: POWERDESK_CALENDAR_TAB_ID,
+    title: () => t('calendarTabTitle'),
+    icon: (size: number) => createElement(IconCalendar, { size }),
+    order: 43,
+    single: true,
+    createTab: () => ({
+      tab: {
+        id: POWERDESK_CALENDAR_TAB_ID,
+        type: POWERDESK_CALENDAR_TAB_ID as TabType,
+        title: t('calendarTabTitle'),
+      } as SidebarTab,
+    }),
+    component: (props: TabComponentProps) => createElement(CalendarTabView, props),
+  }
+  return descriptor as unknown as TabDescriptor
+}
+
 /**
  * Mount the powerdesk sidebar shell to <body> in a portal; returns the
  * disposer. The shell is the layout + wrapper (panel / tab bar / content)
@@ -422,6 +472,10 @@ export function apply(ctx: Context): void {
   ctx.effect(
     () => service.registerTab(buildNotesTabDescriptor()),
     'dsh-powerdesk: notes tab',
+  )
+  ctx.effect(
+    () => service.registerTab(buildCalendarTabDescriptor()),
+    'dsh-powerdesk: calendar tab',
   )
 
   // User-installed extensions register through the same service as the
