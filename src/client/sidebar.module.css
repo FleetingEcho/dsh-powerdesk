@@ -2754,3 +2754,44 @@
   font: var(--dsw-font-xxs-12);
   color: var(--dsw-alias-label-tertiary);
 }
+
+/* Calendar tab (FullCalendar). FullCalendar themes purely through CSS custom
+   properties on .fc (its own root class, not module-scoped — :global is
+   required so lightningcss doesn't hash it away); our design tokens are
+   already light/dark-reactive, so no JS-driven theme toggling is needed
+   here (unlike ResttyTerminal's canvas renderer, which can't read CSS vars
+   and needs an isDark prop injected at construction time instead). */
+.calendarContainer {
+  height: 100%;
+}
+
+.calendarContainer :global(.fc) {
+  height: 100%;
+  color: var(--dsw-alias-label-primary);
+  font: var(--dsw-font-xxs-12);
+  --fc-border-color: var(--dsw-alias-border-l2);
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: var(--dsw-alias-bg-layer-2);
+  --fc-list-event-hover-bg-color: var(--dsw-alias-interactive-bg-hover);
+  --fc-today-bg-color: var(--dsw-alias-interactive-bg-hover-accent);
+  --fc-now-indicator-color: var(--dsw-alias-state-error-primary);
+  --fc-event-bg-color: var(--dsw-alias-brand-primary);
+  --fc-event-border-color: var(--dsw-alias-brand-primary);
+  --fc-event-text-color: var(--dsw-alias-label-primary-inverted);
+  --fc-button-text-color: var(--dsw-alias-label-secondary);
+  --fc-button-bg-color: var(--dsw-alias-bg-layer-2);
+  --fc-button-border-color: var(--dsw-alias-border-l2);
+  --fc-button-hover-bg-color: var(--dsw-alias-interactive-bg-hover);
+  --fc-button-hover-border-color: var(--dsw-alias-border-l2);
+  --fc-button-active-bg-color: var(--dsw-alias-interactive-bg-active);
+  --fc-button-active-border-color: var(--dsw-alias-border-l2);
+}
+
+.calendarContainer :global(.fc .fc-toolbar-title) {
+  font: var(--dsw-font-xxs-strong-12);
+}
+
+.calendarContainer :global(.fc .fc-button) {
+  text-transform: capitalize;
+  box-shadow: none;
+}

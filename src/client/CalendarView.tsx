@@ -1,76 +1,87 @@
 /**
- * The Calendar tab: a schedule-x calendar (Month / Week / Day views) over
- * events persisted in a local SQLite DB via the host's
- * `/powerdesk/api/calendar.*` routes (see calendar-api.ts / rust-sqlite-deps.ts
- * on the host half). Built as a lazy chunk (`lib/client-calendar.js`, see
- * chunks/calendar.tsx + tsdown.config.ts) so schedule-x + preact +
- * temporal-polyfill only download on first calendar-open — not at plugin
- * startup, per the lazy-loading requirement.
+ * The Calendar tab: a FullCalendar (Month / Week / Day views) over events
+ * persisted in a local SQLite DB via the host's `/powerdesk/api/calendar.*`
+ * routes (see calendar-api.ts / rust-sqlite-deps.ts on the host half). Built
+ * as a lazy chunk (`lib/client-calendar.js`, see chunks/calendar.tsx +
+ * tsdown.config.ts) so FullCalendar only downloads on first calendar-open —
+ * not at plugin startup, per the lazy-loading requirement.
  *
- * Mount model: vanilla schedule-x (NOT the `@schedule-x/react` adapter — it
- * lags the core 4.6 line and would pin us to 4.1). `createCalendar()` returns
- * a `CalendarApp` with a `render(el)` method. The render is split across two
- * effects: the init effect creates the calendar (after loading deps + events)
- * and sets state to 'ready'; a second effect renders it into the container —
- * which only mounts once state is 'ready'. Calling `render()` while the
- * component is still showing the loading placeholder would pass a null ref
- * (the container div isn't in the DOM yet) and silently skip the render.
+ * Library choice: FullCalendar replaced schedule-x (see git history) because
+ * schedule-x gates drag-to-create ("draw" a new event by dragging empty grid
+ * space) behind a paid Premium tier — everything else (drag-move, resize)
+ * is free, but drag-to-create was the one feature actually asked for.
+ * FullCalendar's `@fullcalendar/interaction` plugin ships drag-move, resize,
+ * AND drag-to-create (`selectable` + `select`) as MIT-licensed core
+ * features, no license key. Pinned to the 6.1.x line (not the 7.x line,
+ * which is a very recent rewrite whose daygrid/timegrid/interaction plugins
+ * haven't been republished to match yet — installing 7.x core with 6.x
+ * plugins would mismatch peer deps).
  *
- * Temporal boundary: the SQLite store holds naive ISO datetime strings
- * (e.g. '2026-08-18T10:00:00') with NO timezone — they're local wall-clock
- * times. schedule-x v4.6.1 requires `Temporal.ZonedDateTime` or
- * `Temporal.PlainDate` for event start/end (its CalendarEventBuilder calls
- * `.withTimeZone()` on them; a string has no such method and would throw
- * "[Schedule-X error]: Event start time needs to be a Temporal.ZonedDateTime
- * or Temporal.PlainDate."). So we convert at both boundaries:
- *  - API string → schedule-x: `toTemporal(iso)` wraps the string with the
- *    local timezone and parses to a `Temporal.ZonedDateTime` (date-only
- *    strings fall back to `Temporal.PlainDate` for all-day events).
- *  - schedule-x → API string: `toIso(temporal)` extracts the naive local
- *    wall-clock string back out (`.toPlainDateTime().toString()` for ZDT,
- *    `.toString()` for PlainDate).
- * The calendar is configured with `timezone: Temporal.Now.timeZoneId()` so
- * it renders in the user's local time, matching the naive strings we store.
+ * Mount model: the official `@fullcalendar/react` adapter (unlike
+ * schedule-x, where we deliberately avoided its React adapter because it
+ * lagged the core version line — FullCalendar's stays in lockstep). This is
+ * a normal controlled React component: events live in this component's own
+ * state (fetched once on mount, kept in sync by each CRUD callback), passed
+ * straight into the `events` prop — no imperative `calendar.events.add()`
+ * escape hatch needed the way schedule-x required.
  *
- * Global identity: `@schedule-x/calendar` lists `temporal-polyfill` as a
- * peer dependency but its bundled core never imports it — `validateEvents`
- * does a bare, unimported `instanceof Temporal.ZonedDateTime` check, i.e. it
- * expects `Temporal` as a GLOBAL, not a module import. Recent Chrome (135+)
- * now ships `Temporal` natively on `globalThis`. If we build events with the
- * `temporal-polyfill` package's own class while schedule-x's bare reference
- * resolves to the native global class, `instanceof` fails on two unrelated
- * constructors even though the value is a real Temporal instant — this is
- * exactly the "[Schedule-X error]: Event start time needs to be a
- * Temporal.ZonedDateTime or Temporal.PlainDate" crash. Fix: use whichever
- * `Temporal` already lives on `globalThis` (installing the polyfill there
- * only if no native one exists) so our instances and schedule-x's
- * `instanceof` checks share one identity.
+ * Time handling: FullCalendar's default `timeZone: 'local'` parses a
+ * timezone-less ISO string (our SQLite store's naive wall-clock format,
+ * e.g. '2026-08-18T10:00:00') as local time directly — no Temporal
+ * conversion layer needed at all (schedule-x required one; see the removed
+ * toTemporal/toIso machinery in git history). Callbacks hand back native
+ * `Date` objects in the browser's local time; `dateToNaiveIso()` converts
+ * those back to the naive local string the DB expects, using local getters
+ * (not `toISOString()`, which would shift by the UTC offset).
  *
- * CRUD is wired through the calendar's `onEventUpdate` callback (drag-move
- * via `@schedule-x/drag-and-drop` and drag-resize via `@schedule-x/resize`
- * both funnel into this one callback → DB update) plus a "New event"
- * toolbar affordance and double-clicking an empty grid slot (both →
- * `createEventAt`, prompt for a title, DB create) and `onEventClick` →
- * confirm-delete; each mutation syncs to SQLite via the API, with the DB as
- * source of truth (a failed mutation refetches and reconciles).
+ * CRUD: `editable` enables both drag-move (`eventDrop`) and resize
+ * (`eventResize`) — both persist via `calendarUpdate` and call
+ * `info.revert()` on failure so the UI snaps back immediately rather than
+ * silently drifting from the DB. `selectable` + `select` is genuine
+ * drag-to-create: drag across empty grid space, release, prompt for a
+ * title, `calendarCreate`. `eventClick` → confirm-delete, same as before.
+ *
+ * Theming: FullCalendar themes purely through CSS custom properties on its
+ * own `.fc` root class (see sidebar.module.css's Calendar section) — our
+ * design tokens are already light/dark-reactive, so unlike schedule-x
+ * (which needed an explicit `setTheme()` call on scheme flips) or
+ * ResttyTerminal's canvas renderer (which can't read CSS vars at all and
+ * needs isDark injected at construction), no JS-driven theme tracking is
+ * needed here.
  */
-import { createElement, useEffect, useRef, useState, type ReactNode } from 'react'
-import {
-  createCalendar,
-  viewDay,
-  viewMonthGrid,
-  viewWeek,
-  type CalendarApp,
-  type CalendarEventExternal,
-} from '@schedule-x/calendar'
-import { createDragAndDropPlugin } from '@schedule-x/drag-and-drop'
-import { createResizePlugin } from '@schedule-x/resize'
-import { Temporal as PolyfillTemporal } from 'temporal-polyfill'
-import '@schedule-x/theme-default/dist/index.css'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import FullCalendarImport from '@fullcalendar/react'
+import type { CalendarApi, DateSelectArg, EventClickArg, EventDropArg, EventInput } from '@fullcalendar/core'
+import dayGridPluginImport from '@fullcalendar/daygrid'
+import timeGridPluginImport from '@fullcalendar/timegrid'
+import interactionPluginImport, { type EventResizeDoneArg } from '@fullcalendar/interaction'
 import { api, ResttyApiError, type CalendarDepsStatus, type CalendarEvent } from './api.ts'
-import { isDarkScheme, subscribeColorScheme } from './theme.ts'
 import { t } from './locales.ts'
 import css from './sidebar.module.css'
+
+/**
+ * Work around a CJS/ESM interop bug shared by every `@fullcalendar/*`
+ * package: their `dist|index.cjs` builds do `exports["default"] = X`
+ * without setting `exports.__esModule = true`. tsdown's CJS output picks
+ * those `.cjs` builds (rolldown prefers the `require` condition when the
+ * bundle format is `cjs`), and esbuild-style interop helpers can't tell
+ * they're already default exports, so they wrap them AGAIN — `import X from
+ * '@fullcalendar/...'` then resolves to `{ default: X }` (an object)
+ * instead of the real value. For the React component this crashes render
+ * ("Element type is invalid ... got: object", React error #130); for a
+ * plugin passed into `plugins={[...]}` it crashes FullCalendar's own init
+ * ("defs is not iterable", since it iterates the plugin's `.defs` and gets
+ * `undefined` off the wrapper object instead). Unwrap defensively: if the
+ * import still carries a nested `.default`, that's the double-wrap.
+ */
+function unwrapDefault<T>(imported: T): T {
+  const wrapped = imported as unknown as { default?: T }
+  return wrapped.default ?? imported
+}
+const FullCalendar = unwrapDefault(FullCalendarImport)
+const dayGridPlugin = unwrapDefault(dayGridPluginImport)
+const timeGridPlugin = unwrapDefault(timeGridPluginImport)
+const interactionPlugin = unwrapDefault(interactionPluginImport)
 
 export interface CalendarViewProps {
   /** Forwarded by the tab shell so a hidden tab can skip rendering work. */
@@ -85,62 +96,34 @@ type ViewState =
   | { status: 'error'; message: string }
   | { status: 'ready' }
 
-/** The `Temporal` schedule-x's bundled core actually checks `instanceof`
- *  against (see the "Global identity" note above): native when the browser
- *  has one, else the polyfill installed onto `globalThis` so both sides
- *  agree on a single class. */
-const globalTemporal = globalThis as { Temporal?: typeof PolyfillTemporal }
-if (globalTemporal.Temporal === undefined) {
-  globalTemporal.Temporal = PolyfillTemporal
-}
-const Temporal = globalTemporal.Temporal
-
-/** The user's local IANA timezone (e.g. 'America/Vancouver'); resolved once. */
-const LOCAL_TIMEZONE = Temporal.Now.timeZoneId()
-
-/**
- * Convert a naive ISO string from the SQLite store to a schedule-x Temporal
- * value. A datetime string with a time component ('2026-08-18T10:00:00')
- * becomes a `Temporal.ZonedDateTime` in the local timezone; a date-only string
- * ('2026-08-18') becomes a `Temporal.PlainDate` for an all-day event.
- */
-function toTemporal(iso: string): PolyfillTemporal.ZonedDateTime | PolyfillTemporal.PlainDate {
-  if (iso.includes('T')) {
-    return Temporal.ZonedDateTime.from(`${iso}[${LOCAL_TIMEZONE}]`)
-  }
-  return Temporal.PlainDate.from(iso)
-}
-
-/**
- * Convert a schedule-x Temporal value back to a naive ISO string for the
- * SQLite store. `Temporal.ZonedDateTime` → local wall-clock datetime
- * (`.toPlainDateTime().toString()`); `Temporal.PlainDate` → date string.
- */
-function toIso(value: PolyfillTemporal.ZonedDateTime | PolyfillTemporal.PlainDate): string {
-  if (value instanceof Temporal.ZonedDateTime) {
-    return value.toPlainDateTime().toString()
-  }
-  return value.toString()
-}
-
 /** Pad a number to 2 digits (for building local-time ISO strings). */
 function pad2(n: number): string {
   return n < 10 ? `0${n}` : String(n)
 }
 
-/** Local wall-clock ISO (yyyy-MM-ddTHH:mm) for "now rounded up to the next
- *  hour". Uses local getters (not toISOString, which would give UTC). */
-function nextHourIso(): string {
+/** A `Date` (browser local time) to the naive local-wall-clock ISO string
+ *  the SQLite store expects — local getters, not `toISOString()` (UTC). */
+function dateToNaiveIso(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
+}
+
+/** "Now, rounded up to the next hour" as a local Date (for the toolbar's
+ *  "New event" affordance, which has no drag gesture to anchor a time). */
+function nextHourDate(): Date {
   const d = new Date()
   d.setMinutes(0, 0, 0)
   d.setHours(d.getHours() + 1)
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+  return d
 }
 
-/** Local wall-clock ISO one hour after the given yyyy-MM-ddTHH:mm. */
-function plusOneHour(iso: string): string {
-  const zdt = Temporal.ZonedDateTime.from(`${iso}[${LOCAL_TIMEZONE}]`)
-  return zdt.add({ hours: 1 }).toPlainDateTime().toString()
+/** Map a host `CalendarEvent` to the shape FullCalendar's `events` prop wants. */
+function toEventInput(e: CalendarEvent): EventInput {
+  return {
+    id: e.id,
+    title: e.title ?? t('calendarUntitledEvent'),
+    start: e.start,
+    end: e.end,
+  }
 }
 
 /** A deps-missing repair banner (mirrors SearchView's SearchDepsBanner). */
@@ -160,16 +143,13 @@ function CalendarDepsBanner(props: { info: DepsMissing }): ReactNode {
 
 export function CalendarView(props: CalendarViewProps): ReactNode {
   const { visible = true } = props
-  const containerRef = useRef<HTMLDivElement | null>(null)
-  const calendarRef = useRef<CalendarApp | null>(null)
+  const calendarApiRef = useRef<CalendarApi | null>(null)
   const [state, setState] = useState<ViewState>({ status: 'loading' })
+  const [events, setEvents] = useState<EventInput[]>([])
 
-  // ── Effect 1: init — load deps + events, create the calendar instance ──────
-  // Does NOT call calendar.render(): the container div only exists once state
-  // becomes 'ready' (the early returns for loading/error render different JSX),
-  // so rendering here would pass a null ref. The render happens in Effect 2.
+  // Load deps + events once the tab is first visible.
   useEffect(() => {
-    if (!visible) return
+    if (!visible || state.status !== 'loading') return
     let cancelled = false
 
     async function init(): Promise<void> {
@@ -180,142 +160,93 @@ export function CalendarView(props: CalendarViewProps): ReactNode {
         setState({ status: 'deps-missing', info: deps })
         return
       }
-      // 2. Load persisted events from the SQLite store and convert the naive
-      // ISO strings to Temporal values schedule-x requires.
-      let events: CalendarEvent[]
+      // 2. Load persisted events from the SQLite store.
       try {
         const result = await api.calendarList()
         if (cancelled) return
-        events = result.events
+        setEvents(result.events.map(toEventInput))
+        setState({ status: 'ready' })
       } catch (error) {
         if (cancelled) return
         setState({ status: 'error', message: error instanceof Error ? error.message : String(error) })
-        return
       }
-      const sxEvents = events.map((e) => ({
-        id: e.id,
-        ...(e.title !== undefined ? { title: e.title } : {}),
-        start: toTemporal(e.start),
-        end: toTemporal(e.end),
-        ...(e.location !== undefined ? { location: e.location } : {}),
-        ...(e.description !== undefined ? { description: e.description } : {}),
-        ...(e.calendarId !== undefined ? { calendarId: e.calendarId } : {}),
-      }) as unknown as CalendarEventExternal)
-      // 3. Create the schedule-x calendar (vanilla, no React adapter) in the
-      // user's local timezone so rendered times match the stored naive strings.
-      // The drag-and-drop + resize plugins are what make events draggable at
-      // all (schedule-x gates its draggable attribute and resize grabbers on
-      // `config.plugins.dragAndDrop` / `.resize` being present — see
-      // CalendarView.tsx's module doc); both funnel through the same
-      // `onEventUpdate` callback as any other move/resize.
-      const calendar = createCalendar({
-        views: [viewMonthGrid, viewWeek, viewDay],
-        events: sxEvents,
-        isDark: isDarkScheme(),
-        timezone: LOCAL_TIMEZONE,
-        callbacks: {
-          // Drag-move / drag-resize: schedule-x already updated its internal
-          // state; we convert the Temporal values back to naive ISO strings
-          // and persist to SQLite.
-          onEventUpdate: (event: CalendarEventExternal) => {
-            const id = String(event.id)
-            api.calendarUpdate({
-              id,
-              ...(event.title !== undefined ? { title: event.title } : {}),
-              start: toIso(event.start as PolyfillTemporal.ZonedDateTime | PolyfillTemporal.PlainDate),
-              end: toIso(event.end as PolyfillTemporal.ZonedDateTime | PolyfillTemporal.PlainDate),
-              ...(event.location !== undefined ? { location: event.location } : {}),
-              ...(event.description !== undefined ? { description: event.description } : {}),
-              ...(event.calendarId !== undefined ? { calendarId: event.calendarId } : {}),
-            }).catch(() => { reconcile(calendarRef.current) })
-          },
-          // Click an event → confirm + delete (DB is source of truth).
-          onEventClick: (event: CalendarEventExternal) => {
-            const id = String(event.id)
-            const label = event.title ?? t('calendarUntitledEvent')
-            if (window.confirm(t('calendarDeleteConfirm', { title: label }))) {
-              api.calendarDelete(id).then((result) => {
-                if (result.changes > 0) calendarRef.current?.events.remove(id)
-              }).catch(() => { reconcile(calendarRef.current) })
-            }
-          },
-          // Double-click an empty grid slot → quick-create a 1-hour event
-          // starting exactly there (schedule-x has no built-in "drag an empty
-          // slot to sketch a new event" gesture in this version; this is the
-          // closest first-class hook it exposes for point-and-create).
-          onDoubleClickDateTime: (dateTime: PolyfillTemporal.ZonedDateTime) => {
-            createEventAt(dateTime.toPlainDateTime().toString())
-          },
-        },
-      }, [createDragAndDropPlugin(), createResizePlugin()])
-      if (cancelled) {
-        calendar.destroy()
-        return
-      }
-      calendarRef.current = calendar
-      // State change → re-render shows the container div → Effect 2 renders.
-      setState({ status: 'ready' })
     }
 
     init().catch((error: unknown) => {
       if (!cancelled) setState({ status: 'error', message: error instanceof Error ? error.message : String(error) })
     })
 
-    // Re-theme on a light/dark scheme flip (mirrors CodeEditor's live re-theme).
-    const unsubscribe = subscribeColorScheme(() => {
-      try {
-        calendarRef.current?.setTheme(isDarkScheme() ? 'dark' : 'light')
-      } catch { /* setTheme is safe to call before render; ignore races */ }
-    })
+    return () => { cancelled = true }
+  }, [visible, state.status])
 
-    return () => {
-      cancelled = true
-      unsubscribe()
-      calendarRef.current?.destroy()
-      calendarRef.current = null
-    }
-  }, [visible])
+  /** Refetch all events from the DB (DB is the source of truth; used to
+   *  reconcile the local view after a failed mutation). */
+  function reconcile(): void {
+    api.calendarList().then((result) => {
+      setEvents(result.events.map(toEventInput))
+    }).catch(() => { /* leave the local view as-is; next open refetches */ })
+  }
 
-  // ── Effect 2: render the calendar into the container once it's mounted ────
-  // Runs after the 'ready' re-render commits the container div to the DOM, so
-  // containerRef.current is set. This is the fix for the "calendar never
-  // appears" bug: calling render() in Effect 1 passed a null ref because the
-  // container div wasn't in the DOM yet (the loading placeholder was showing).
-  useEffect(() => {
-    if (state.status !== 'ready') return
-    const cal = calendarRef.current
-    const el = containerRef.current
-    if (cal !== null && el !== null) {
-      cal.render(el)
-    }
-  }, [state.status])
-
-  /** Create a new 1-hour event starting at `startIso` (title via prompt).
+  /** Create a new 1-hour event starting at `start` (title via prompt).
    *  Shared by the toolbar "New event" button (starts next hour) and
-   *  double-clicking an empty grid slot (starts exactly there). */
-  function createEventAt(startIso: string): void {
+   *  drag-to-create on the grid (starts/ends exactly where dragged). */
+  function createEventAt(start: Date, end: Date): void {
     const title = window.prompt(t('calendarNewEventPrompt'), t('calendarUntitledEvent'))
     if (title === null) return
-    const end = plusOneHour(startIso)
     const event: CalendarEvent = {
       id: crypto.randomUUID(),
       title: title === '' ? t('calendarUntitledEvent') : title,
-      start: startIso,
-      end,
+      start: dateToNaiveIso(start),
+      end: dateToNaiveIso(end),
     }
     api.calendarCreate(event).then(() => {
-      // Convert to the Temporal value schedule-x expects before adding.
-      calendarRef.current?.events.add({
-        id: event.id,
-        title: event.title,
-        start: toTemporal(event.start),
-        end: toTemporal(event.end),
-      } as unknown as CalendarEventExternal)
+      setEvents((prev) => [...prev, toEventInput(event)])
     }).catch((error: unknown) => {
       if (error instanceof ResttyApiError) {
         setState({ status: 'error', message: error.message })
       }
     })
+  }
+
+  function handleSelect(info: DateSelectArg): void {
+    createEventAt(info.start, info.end)
+    calendarApiRef.current?.unselect()
+  }
+
+  function handleEventDrop(info: EventDropArg): void {
+    const { event } = info
+    if (event.start === null || event.end === null) return
+    api.calendarUpdate({
+      id: event.id,
+      start: dateToNaiveIso(event.start),
+      end: dateToNaiveIso(event.end),
+    }).catch(() => {
+      info.revert()
+      reconcile()
+    })
+  }
+
+  function handleEventResize(info: EventResizeDoneArg): void {
+    const { event } = info
+    if (event.start === null || event.end === null) return
+    api.calendarUpdate({
+      id: event.id,
+      start: dateToNaiveIso(event.start),
+      end: dateToNaiveIso(event.end),
+    }).catch(() => {
+      info.revert()
+      reconcile()
+    })
+  }
+
+  function handleEventClick(info: EventClickArg): void {
+    const id = info.event.id
+    const label = info.event.title === '' ? t('calendarUntitledEvent') : info.event.title
+    if (window.confirm(t('calendarDeleteConfirm', { title: label }))) {
+      api.calendarDelete(id).then((result) => {
+        if (result.changes > 0) info.event.remove()
+      }).catch(() => { reconcile() })
+    }
   }
 
   if (state.status === 'loading') {
@@ -334,34 +265,31 @@ export function CalendarView(props: CalendarViewProps): ReactNode {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <div style={{ padding: '6px 8px', flex: '0 0 auto' }}>
-        <button type="button" className={css.terminalRetry} onClick={() => { createEventAt(nextHourIso()) }}>
+        <button type="button" className={css.terminalRetry} onClick={() => { const start = nextHourDate(); createEventAt(start, new Date(start.getTime() + 60 * 60 * 1000)) }}>
           {t('calendarNewEvent')}
         </button>
       </div>
-      {/* schedule-x's .sx__calendar-wrapper sets height:100%, so this container
-          needs a definite height. flex:1 (basis 0) breaks the circular height
-          dependency that flex-basis:auto would create (container needs content
-          height, content needs container height → both collapse to 0). */}
-      <div ref={containerRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden' }} />
+      {/* FullCalendar's height:"100%" needs a parent with a definite height;
+          flex:1 (basis 0) breaks the circular height dependency that
+          flex-basis:auto would create. */}
+      <div className={css.calendarContainer} style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+        <FullCalendar
+          ref={(instance) => { calendarApiRef.current = instance?.getApi() ?? null }}
+          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+          initialView="timeGridWeek"
+          headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' }}
+          height="100%"
+          timeZone="local"
+          editable
+          selectable
+          selectMirror
+          events={events}
+          eventClick={handleEventClick}
+          eventDrop={handleEventDrop}
+          eventResize={handleEventResize}
+          select={handleSelect}
+        />
+      </div>
     </div>
   )
-}
-
-/** Refetch all events from the DB and reconcile the calendar (source of truth). */
-async function reconcile(calendar: CalendarApp | null): Promise<void> {
-  if (calendar === null) return
-  try {
-    const result = await api.calendarList()
-    calendar.events.set(
-      result.events.map((e) => ({
-        id: e.id,
-        ...(e.title !== undefined ? { title: e.title } : {}),
-        start: toTemporal(e.start),
-        end: toTemporal(e.end),
-        ...(e.location !== undefined ? { location: e.location } : {}),
-        ...(e.description !== undefined ? { description: e.description } : {}),
-        ...(e.calendarId !== undefined ? { calendarId: e.calendarId } : {}),
-      }) as unknown as CalendarEventExternal),
-    )
-  } catch { /* a failed reconcile leaves the local view as-is; next open refetches */ }
 }
