@@ -138,9 +138,10 @@ export function SettingsSection({ close, sidebar, extensions }: SettingsSectionP
         <p className={css.settingsMissing}>{t('settingsSidebarMissing')}</p>
       )}
       {hint !== null && <p className={css.settingsHint}>{hint}</p>}
-      {/* Terminal appearance (font family/weight/size/theme + PTY backend).
-          Lives here, not on the terminal page, so every terminal shares one
-          appearance and the tab surface stays focused on output. */}
+      {/* Appearance: terminal font family/weight/size/theme + the
+          CodeMirror editor theme. Lives here, not on the terminal or
+          editor page, so every terminal shares one appearance and the tab
+          surfaces stay focused on output. */}
       <TerminalAppearancePanelLazy />
       {/* Extension tabs appear in the grid above like any other tab type
           (with the same enable/disable switch); this block is only about

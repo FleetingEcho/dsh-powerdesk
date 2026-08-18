@@ -1,6 +1,7 @@
 /**
- * restty terminal preferences: the user-tunable terminal-appearance settings
- * (font family, font weight, font size, builtin theme). Powerdesk owns its
+ * Powerdesk appearance preferences: the user-tunable terminal-appearance
+ * settings (font family, font weight, font size, builtin theme) plus the
+ * code editor's (CodeMirror) theme preset. Powerdesk owns its
  * sidebar, so these live in a single GLOBAL localStorage key
  * ({@link PREFS_STORAGE_KEY}) — one terminal appearance for every
  * conversation, not per-session. This module owns the pure read/merge/clamp
@@ -38,7 +39,7 @@ export const POWERDESK_TAB_ID = 'dsh-powerdesk:terminal'
 /** Which PTY backend the terminal connects to. */
 export type PtyBackend = 'own' | 'better-sidebar'
 
-/** The plugin's persisted terminal-appearance preferences. */
+/** The plugin's persisted appearance preferences (terminal + code editor). */
 export interface ResttyPrefs {
   /** Custom font family ('' → theme code font → built-in fallback). */
   fontFamily: string
@@ -51,6 +52,9 @@ export interface ResttyPrefs {
   ptyBackend: PtyBackend
   /** Terminal theme preset ('' / 'auto' → follow the app scheme). */
   themeName: string
+  /** Code editor (CodeMirror) theme preset id ('' / 'auto' → follow the app
+   *  scheme; default {@link DEFAULT_EDITOR_THEME} keeps the original look). */
+  editorTheme: string
 }
 
 /** Font size bounds (px). Min 12 keeps text legible; max 30 caps it. */
@@ -94,6 +98,7 @@ export const DEFAULT_PREFS: ResttyPrefs = {
   fontSize: TERMINAL_FONT_SIZE_DEFAULT,
   ptyBackend: 'own',
   themeName: '',
+  editorTheme: 'dracula',
 }
 
 /** Clamp a font size into the supported range. */
@@ -123,7 +128,11 @@ export function mergePrefs(partial: Record<string, unknown> | null | undefined):
   const fontSize = typeof raw.fontSize === 'number' ? raw.fontSize : DEFAULT_PREFS.fontSize
   const ptyBackend: PtyBackend = raw.ptyBackend === 'better-sidebar' ? 'better-sidebar' : 'own'
   const themeName = typeof raw.themeName === 'string' ? raw.themeName : DEFAULT_PREFS.themeName
-  return { fontFamily, fontWeight, fontSize: clampResttyFontSize(fontSize), ptyBackend, themeName }
+  // The editor theme is NOT validated here (an unknown id degrades to the
+  // default palette at resolution time — see editor-theme.ts), so a raw
+  // string round-trips unchanged.
+  const editorTheme = typeof raw.editorTheme === 'string' ? raw.editorTheme : DEFAULT_PREFS.editorTheme
+  return { fontFamily, fontWeight, fontSize: clampResttyFontSize(fontSize), ptyBackend, themeName, editorTheme }
 }
 
 /**

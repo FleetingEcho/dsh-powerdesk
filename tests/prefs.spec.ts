@@ -31,8 +31,18 @@ describe('prefs', () => {
   it('mergePrefs fills defaults and only accepts the known backend values', () => {
     expect(mergePrefs(null)).toEqual(DEFAULT_PREFS)
     const p = mergePrefs({ fontFamily: 'Fira Code', fontSize: 99, ptyBackend: 'better-sidebar', themeName: 'Aizen Dark', extra: 'ignored' })
-    expect(p).toEqual({ fontFamily: 'Fira Code', fontWeight: TERMINAL_FONT_WEIGHT_DEFAULT, fontSize: TERMINAL_FONT_SIZE_MAX, ptyBackend: 'better-sidebar', themeName: 'Aizen Dark' })
+    expect(p).toEqual({ fontFamily: 'Fira Code', fontWeight: TERMINAL_FONT_WEIGHT_DEFAULT, fontSize: TERMINAL_FONT_SIZE_MAX, ptyBackend: 'better-sidebar', themeName: 'Aizen Dark', editorTheme: 'dracula' })
     expect(mergePrefs({ ptyBackend: 'weird' }).ptyBackend).toBe('own')
+  })
+
+  it('mergePrefs keeps a stored editor theme and defaults to dracula', () => {
+    // The default keeps the look from before themes were selectable; a stored
+    // id round-trips verbatim (unknown ids degrade to the default palette at
+    // RESOLUTION time, not here — see editor-theme.ts).
+    expect(mergePrefs(null).editorTheme).toBe('dracula')
+    expect(mergePrefs({ editorTheme: 'nord' }).editorTheme).toBe('nord')
+    expect(mergePrefs({ editorTheme: 'auto' }).editorTheme).toBe('auto')
+    expect(mergePrefs({ editorTheme: 42 }).editorTheme).toBe('dracula')
   })
 
   it('clampResttyFontWeight snaps to the nearest offered weight and defaults NaN', () => {

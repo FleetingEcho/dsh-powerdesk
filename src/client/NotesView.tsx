@@ -2,7 +2,8 @@
  * The Notes tab: bind one local folder, browse only its `.md`/`.markdown`
  * files as a recursive tree (left, width freely draggable via the divider),
  * edit the selected one in the same CodeMirror editor the file-open flow
- * uses (right — syntax-highlighted markdown, Dracula theme, Cmd/Ctrl+S
+ * uses (right — syntax-highlighted markdown, the configured CodeMirror
+ * theme (Dracula by default), Cmd/Ctrl+S
  * save). New note / new folder / rename / delete round-trip through the
  * fs.* API; the binding is rebindable any time from the header (click the
  * folder name to reopen the folder-picker modal and choose a different one).

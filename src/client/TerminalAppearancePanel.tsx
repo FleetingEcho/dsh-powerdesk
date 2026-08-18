@@ -1,8 +1,9 @@
 /**
- * The Terminal appearance block of the Powerdesk Side card: font family
- * (system font picker), font weight, font size, and terminal theme. Lives
- * ONLY here — never on the terminal page — so terminal tabs stay focused on
- * output and all appearance controls share one home.
+ * The Appearance block of the Powerdesk Side card: terminal font family
+ * (system font picker), font weight, font size, the terminal theme, and the
+ * code editor's (CodeMirror) theme. Lives ONLY here — never on the terminal
+ * or editor page — so those tabs stay focused on output and all appearance
+ * controls share one home.
  *
  * All interactive controls are built on Radix UI Select primitives so they
  * match the shell's accessible component vocabulary and read consistently
@@ -33,9 +34,11 @@
  * browser's own validation matches {@link clampResttyFontSize}, which
  * re-clamps on write (an empty/NaN field reverts to the default).
  *
- * Theme picker: a short curated list (auto / tokyo-night / dracula /
- * high-contrast / …). The full restty catalog is NOT exposed here (kept the
- * dropdown readable); a curated preset covers the well-known themes.
+ * Theme pickers: two short curated lists — one for the restty terminal
+ * (auto / tokyo-night / dracula / high-contrast / …) and one for the
+ * CodeMirror editor (auto / dracula / github-dark / one-dark / …). The full
+ * restty catalog is NOT exposed here (kept the dropdowns readable); the
+ * curated presets cover the well-known themes.
  */
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import * as Select from '@radix-ui/react-select'
@@ -52,12 +55,15 @@ import {
   TERMINAL_THEME_PRESETS,
   themePresetLabelKey,
 } from './terminal-theme.ts'
+import { EDITOR_THEME_PRESETS } from './editor-theme.ts'
 import { useTerminalPrefs } from './useTerminalPrefs.ts'
 import { t } from './locales.ts'
 import css from './sidebar.module.css'
 
 /** The curated preset ids as a set, for "is the current value a preset?" */
 const PRESET_IDS: ReadonlySet<string> = new Set(TERMINAL_THEME_PRESETS.map(p => p.id))
+/** The curated editor preset ids as a set (same purpose, editor list). */
+const EDITOR_PRESET_IDS: ReadonlySet<string> = new Set(EDITOR_THEME_PRESETS)
 
 /** Font-weight display labels (restty accepts the numeric value). */
 const WEIGHT_LABELS: Record<number, string> = {
@@ -225,12 +231,21 @@ export function TerminalAppearancePanel(): ReactNode {
     // 'auto' is stored as '' so the scheme default resolves.
     writePrefsToLocalStorage({ themeName: value === 'auto' ? '' : value })
   }, [])
+  const setEditorTheme = useCallback((value: string) => {
+    // Stored verbatim (the editor resolver accepts 'auto' directly, unlike
+    // the terminal's '' convention).
+    writePrefsToLocalStorage({ editorTheme: value })
+  }, [])
 
   const themeValue = themeSelectValue(prefs)
   // A raw builtin stored as themeName (not a preset id) is shown as-is; the
   // curated list is the only surface now, so a stray value renders as a lone
   // option so the Select never shows blank.
   const themeIsPreset = PRESET_IDS.has(themeValue)
+  // The editor theme value: '' is normalized to 'auto' for the option lookup
+  // (both mean follow-scheme to the resolver).
+  const editorThemeValue = prefs.editorTheme.trim() === '' ? 'auto' : prefs.editorTheme
+  const editorThemeIsPreset = EDITOR_PRESET_IDS.has(editorThemeValue)
 
   return (
     <div className={css.appearanceSection}>
@@ -335,12 +350,11 @@ export function TerminalAppearancePanel(): ReactNode {
           />
         </div>
 
-        {/* Theme. */}
+        {/* Terminal theme. */}
         <LabeledSelect
           labelKey="appearanceTheme"
           value={themeValue}
           onValueChange={setTheme}
-          full
         >
           {TERMINAL_THEME_PRESETS.map(p => (
             <SelectOption key={p.id} value={p.id} label={t(themePresetLabelKey(p.id))} />
@@ -350,6 +364,23 @@ export function TerminalAppearancePanel(): ReactNode {
               only picker surface now. */}
           {!themeIsPreset && (
             <SelectOption value={themeValue} label={themeValue} />
+          )}
+        </LabeledSelect>
+
+        {/* Code editor (CodeMirror) theme. */}
+        <LabeledSelect
+          labelKey="appearanceEditorTheme"
+          value={editorThemeValue}
+          onValueChange={setEditorTheme}
+        >
+          {EDITOR_THEME_PRESETS.map(id => (
+            <SelectOption key={id} value={id} label={t(themePresetLabelKey(id))} />
+          ))}
+          {/* A stored value outside the curated list (stale / hand-edited)
+              is surfaced as a lone option so the Select never shows blank —
+              the editor itself degrades to the default palette for it. */}
+          {!editorThemeIsPreset && (
+            <SelectOption value={editorThemeValue} label={editorThemeValue} />
           )}
         </LabeledSelect>
       </div>

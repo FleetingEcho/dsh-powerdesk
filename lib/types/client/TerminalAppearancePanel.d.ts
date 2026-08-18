@@ -1,8 +1,9 @@
 /**
- * The Terminal appearance block of the Powerdesk Side card: font family
- * (system font picker), font weight, font size, and terminal theme. Lives
- * ONLY here — never on the terminal page — so terminal tabs stay focused on
- * output and all appearance controls share one home.
+ * The Appearance block of the Powerdesk Side card: terminal font family
+ * (system font picker), font weight, font size, the terminal theme, and the
+ * code editor's (CodeMirror) theme. Lives ONLY here — never on the terminal
+ * or editor page — so those tabs stay focused on output and all appearance
+ * controls share one home.
  *
  * All interactive controls are built on Radix UI Select primitives so they
  * match the shell's accessible component vocabulary and read consistently
@@ -33,9 +34,11 @@
  * browser's own validation matches {@link clampResttyFontSize}, which
  * re-clamps on write (an empty/NaN field reverts to the default).
  *
- * Theme picker: a short curated list (auto / tokyo-night / dracula /
- * high-contrast / …). The full restty catalog is NOT exposed here (kept the
- * dropdown readable); a curated preset covers the well-known themes.
+ * Theme pickers: two short curated lists — one for the restty terminal
+ * (auto / tokyo-night / dracula / high-contrast / …) and one for the
+ * CodeMirror editor (auto / dracula / github-dark / one-dark / …). The full
+ * restty catalog is NOT exposed here (kept the dropdowns readable); the
+ * curated presets cover the well-known themes.
  */
 import { type ReactNode } from 'react';
 /** The terminal appearance panel. */

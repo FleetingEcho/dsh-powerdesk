@@ -1,6 +1,7 @@
 /**
- * restty terminal preferences: the user-tunable terminal-appearance settings
- * (font family, font weight, font size, builtin theme). Powerdesk owns its
+ * Powerdesk appearance preferences: the user-tunable terminal-appearance
+ * settings (font family, font weight, font size, builtin theme) plus the
+ * code editor's (CodeMirror) theme preset. Powerdesk owns its
  * sidebar, so these live in a single GLOBAL localStorage key
  * ({@link PREFS_STORAGE_KEY}) — one terminal appearance for every
  * conversation, not per-session. This module owns the pure read/merge/clamp
@@ -35,7 +36,7 @@ import type { SidebarStore } from './service.ts';
 export declare const POWERDESK_TAB_ID = "dsh-powerdesk:terminal";
 /** Which PTY backend the terminal connects to. */
 export type PtyBackend = 'own' | 'better-sidebar';
-/** The plugin's persisted terminal-appearance preferences. */
+/** The plugin's persisted appearance preferences (terminal + code editor). */
 export interface ResttyPrefs {
     /** Custom font family ('' → theme code font → built-in fallback). */
     fontFamily: string;
@@ -48,6 +49,9 @@ export interface ResttyPrefs {
     ptyBackend: PtyBackend;
     /** Terminal theme preset ('' / 'auto' → follow the app scheme). */
     themeName: string;
+    /** Code editor (CodeMirror) theme preset id ('' / 'auto' → follow the app
+     *  scheme; default {@link DEFAULT_EDITOR_THEME} keeps the original look). */
+    editorTheme: string;
 }
 /** Font size bounds (px). Min 12 keeps text legible; max 30 caps it. */
 export declare const TERMINAL_FONT_SIZE_MIN = 12;

@@ -3,8 +3,14 @@
  * Registered as the 'editor' tab type — `service.openFile(scope, path)` (see
  * service.ts) hardcodes that type id, so the descriptor registering this
  * component MUST keep `id: 'editor'`. Loads via fs.read, saves via fs.write
- * (Cmd/Ctrl+S or the save button); the header shows a dirty dot while
- * unsaved edits exist.
+ * (Cmd/Ctrl+S); the tab header shows a dirty dot while unsaved edits exist.
+ *
+ * The theme comes from the global prefs (`editorTheme`, edited in the
+ * Settings → Powerdesk appearance panel; palettes live in
+ * {@link ./editor-theme.ts}). A pref change — or an app-scheme flip while
+ * the pref follows the scheme — re-themes the MOUNTED view live through
+ * `StateEffect.reconfigure`, which preserves the doc, the selection, and the
+ * undo history (it is a pure appearance swap, not a reload).
  *
  * Lives in the 'editor' lazy chunk (CodeMirror + its language packages are
  * a few hundred KB) — never import this from the core client bundle.

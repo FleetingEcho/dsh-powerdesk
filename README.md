@@ -20,8 +20,9 @@ all self-contained, in a dockable right panel *and* a dockable bottom panel
   recursive tree, with inline create / rename / delete for both notes and
   folders. The editor is embedded in the same tab (tree left, editor right).
 - **Editor** — [CodeMirror 6](https://codemirror.net/) with syntax
-  highlighting for TS/JS/Python/JSON/CSS/HTML/Markdown/Rust/YAML, a Dracula
-  theme, soft line-wrapping, and Cmd/Ctrl+S save. Opens automatically when you
+  highlighting for TS/JS/Python/JSON/CSS/HTML/Markdown/Rust/YAML, a
+  selectable CodeMirror theme (Dracula by default), soft line-wrapping, and
+  Cmd/Ctrl+S save. Opens automatically when you
   click a file in Explorer or Notes.
 - **Browser** — a sandboxed iframe behind an address bar, with an
   embeddability probe that explains `X-Frame-Options` / `frame-ancestors`
@@ -190,7 +191,8 @@ quota (the tab title shows the index: `Terminal 1`, `Terminal 2`, …).
 The terminal toolbar has a **copy** action. Font family / weight / size / theme
 are stored prefs (`dsh-powerdesk:prefs` in `localStorage`) with sane defaults
 (font size defaults to 16px) — edit them from the **Settings → Powerdesk**
-card, which exposes Radix-UI controls for the family, weight, size, and theme.
+card, which exposes Radix-UI controls for the family, weight, size, and
+theme, plus a separate selector for the code editor's (CodeMirror's) theme.
 
 If the native PTY binary is missing or fails to load, the terminal shows a
 repair banner with the exact command to run instead of crashing the plugin.
@@ -233,12 +235,16 @@ existing file of the same name).
 Not opened directly — it's what Explorer and Notes open files into
 (`service.openFile`). CodeMirror 6 with syntax highlighting for
 TypeScript/JavaScript, Python, JSON, CSS, HTML, Markdown, Rust, and YAML; a
-hand-rolled Dracula theme (the published `@uiw/codemirror-theme-dracula`
-package pulls in `@babel/runtime` helpers that don't resolve in this
-bundler's browser build, so the palette is applied directly as a
-`HighlightStyle` + `EditorView.theme`); soft line-wrapping (no horizontal
-scrollbar needed for long lines); Cmd/Ctrl+S or the save button to write
-back. The header shows a dirty dot while there are unsaved edits.
+selectable CodeMirror theme — Dracula by default (the published
+`@uiw/codemirror-theme-*` packages pull in `@babel/runtime` helpers that
+don't resolve in this bundler's browser build, so the palettes are
+hand-rolled and applied directly as a `HighlightStyle` +
+`EditorView.theme`). The theme is picked in the **Settings → Powerdesk**
+card and re-applies live to any open editor (a `StateEffect.reconfigure`
+swap — the doc and undo history survive); `auto` follows the app's
+light/dark scheme. Soft line-wrapping (no horizontal scrollbar needed for
+long lines); Cmd/Ctrl+S to write back. The tab shows a dirty dot while there
+are unsaved edits.
 
 Lives in its own lazy chunk (shared with Notes, since Notes embeds the same
 editor) — CodeMirror is only downloaded once a file is actually opened.
@@ -404,7 +410,7 @@ dsh-powerdesk:
 
 | Pref | Storage key | Notes |
 | --- | --- | --- |
-| Terminal font family / size / theme | `dsh-powerdesk:prefs` | No settings UI yet — defaults only; edit the key directly to override. |
+| Terminal font family / weight / size / theme; CodeMirror (editor) theme | `dsh-powerdesk:prefs` | Editable from the **Settings → Powerdesk** card (Appearance). |
 | Explorer folder bookmarks | `dsh-powerdesk:explorer-bookmarks` | Multiple bookmarks + which one is active. |
 | Notes bound folder | `dsh-powerdesk:notes-folder` | One folder, rebindable. |
 | Notes tree column width | `dsh-powerdesk:notes-tree-width` | Dragged via the divider. |

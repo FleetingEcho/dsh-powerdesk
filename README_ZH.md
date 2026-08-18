@@ -17,7 +17,8 @@
 - **笔记** —— 绑定一个本地文件夹，以递归树浏览/编辑其下的 `.md` 文件，支持笔记与
   文件夹的内联新建 / 重命名 / 删除。编辑器内嵌于同一标签页（左侧树、右侧编辑器）。
 - **编辑器** —— [CodeMirror 6](https://codemirror.net/)，支持
-  TS/JS/Python/JSON/CSS/HTML/Markdown/Rust/YAML 语法高亮、Dracula 主题、软换行、
+  TS/JS/Python/JSON/CSS/HTML/Markdown/Rust/YAML 语法高亮、可选择的 CodeMirror
+  主题（默认 Dracula）、软换行、
   Cmd/Ctrl+S 保存。在浏览器或笔记中点击文件时自动打开。
 - **浏览器** —— 地址栏背后的沙箱 iframe，带有可嵌入性探测，能解释
   `X-Frame-Options` / `frame-ancestors` 拒绝原因，而不是显示空白的「拒绝连接」框。
@@ -162,7 +163,7 @@ dsh plugin --profile web add "dsh-powerdesk@link:$PWD"
 终端工具栏有**复制**按钮。字体家族 / 字重 / 大小 / 主题是持久化的偏好
 （`localStorage` 中的 `dsh-powerdesk:prefs`），带有合理的默认值（字体大小默认
 16px）—— 可在「设置 → Powerdesk」卡片里直接编辑，该卡片以 Radix-UI 控件暴露
-家族、字重、大小与主题。
+家族、字重、大小与终端主题，并单独提供代码编辑器（CodeMirror）的主题选择器。
 
 如果原生 PTY 二进制缺失或加载失败，终端会显示带确切修复命令的修复横幅，而不是
 让插件崩溃。见下方**修复**。
@@ -194,10 +195,13 @@ dsh plugin --profile web add "dsh-powerdesk@link:$PWD"
 
 不直接打开 —— 它是浏览器和笔记打开文件的目标（`service.openFile`）。基于
 CodeMirror 6，支持 TypeScript/JavaScript、Python、JSON、CSS、HTML、Markdown、Rust
-和 YAML 语法高亮；手写的 Dracula 主题（已发布的 `@uiw/codemirror-theme-dracula`
-包会拉入在这个打包器的浏览器构建里无法解析的 `@babel/runtime` helper，所以调色板
-直接以 `HighlightStyle` + `EditorView.theme` 应用）；软换行（长行无需横向滚动条）；
-Cmd/Ctrl+S 或保存按钮写回。有未保存编辑时头部显示一个脏点。
+和 YAML 语法高亮；可选择的 CodeMirror 主题 —— 默认 Dracula（已发布的
+`@uiw/codemirror-theme-*` 包会拉入在这个打包器的浏览器构建里无法解析的
+`@babel/runtime` helper，所以调色板是手写的、直接以 `HighlightStyle` +
+`EditorView.theme` 应用）。主题在「设置 → Powerdesk」卡片中选择，并对已打开的
+编辑器即时生效（`StateEffect.reconfigure` 切换 —— 文档与撤销历史保留）；
+`auto` 跟随应用的明暗模式。软换行（长行无需横向滚动条）；Cmd/Ctrl+S 写回。
+有未保存编辑时标签页显示一个脏点。
 
 它住在自己的懒加载 chunk 里（与笔记共享，因为笔记内嵌同一编辑器）——
 CodeMirror 只在真正打开文件时才下载。
@@ -348,7 +352,7 @@ dsh-powerdesk:
 
 | 偏好 | 存储 key | 说明 |
 | --- | --- | --- |
-| 终端字体家族 / 大小 / 主题 | `dsh-powerdesk:prefs` | 默认值；可在设置卡片里编辑。 |
+| 终端字体家族 / 字重 / 大小 / 主题；CodeMirror（编辑器）主题 | `dsh-powerdesk:prefs` | 在「设置 → Powerdesk」卡片（外观）中编辑。 |
 | 浏览器文件夹书签 | `dsh-powerdesk:explorer-bookmarks` | 多个书签及当前活动项。 |
 | 笔记绑定文件夹 | `dsh-powerdesk:notes-folder` | 单个文件夹，可重绑。 |
 | 笔记树列宽 | `dsh-powerdesk:notes-tree-width` | 经分隔条拖拽。 |

@@ -3,17 +3,23 @@
  * Registered as the 'editor' tab type — `service.openFile(scope, path)` (see
  * service.ts) hardcodes that type id, so the descriptor registering this
  * component MUST keep `id: 'editor'`. Loads via fs.read, saves via fs.write
- * (Cmd/Ctrl+S or the save button); the header shows a dirty dot while
- * unsaved edits exist.
+ * (Cmd/Ctrl+S); the tab header shows a dirty dot while unsaved edits exist.
+ *
+ * The theme comes from the global prefs (`editorTheme`, edited in the
+ * Settings → Powerdesk appearance panel; palettes live in
+ * {@link ./editor-theme.ts}). A pref change — or an app-scheme flip while
+ * the pref follows the scheme — re-themes the MOUNTED view live through
+ * `StateEffect.reconfigure`, which preserves the doc, the selection, and the
+ * undo history (it is a pure appearance swap, not a reload).
  *
  * Lives in the 'editor' lazy chunk (CodeMirror + its language packages are
  * a few hundred KB) — never import this from the core client bundle.
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { EditorView, basicSetup } from 'codemirror'
-import { EditorSelection, EditorState, type Extension } from '@codemirror/state'
+import { EditorSelection, EditorState, StateEffect, type Extension } from '@codemirror/state'
 import { keymap } from '@codemirror/view'
-import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
+import { HighlightStyle, syntaxHighlighting, type TagStyle } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
 import { javascript } from '@codemirror/lang-javascript'
 import { python } from '@codemirror/lang-python'
@@ -25,6 +31,9 @@ import { rust } from '@codemirror/lang-rust'
 import { yaml } from '@codemirror/lang-yaml'
 import { api } from './api.ts'
 import { t } from './locales.ts'
+import { editorThemeSpec, resolveEditorThemeId, type EditorThemeSpec } from './editor-theme.ts'
+import { isDarkScheme, subscribeColorScheme } from './theme.ts'
+import { useTerminalPrefs } from './useTerminalPrefs.ts'
 import css from './sidebar.module.css'
 
 export interface CodeEditorProps {
@@ -70,45 +79,85 @@ function languageFor(path: string): Extension[] {
 }
 
 /**
- * Dracula palette (the standard published color set — draculatheme.com),
- * hand-rolled as a plain EditorView.theme + HighlightStyle rather than
- * pulling in `@uiw/codemirror-theme-dracula`: that package's CJS build
- * requires `@babel/runtime` helpers that don't resolve in this browser
- * bundle (no Node module resolution at runtime), and its ESM build wasn't
- * being picked up by the bundler's export-conditions resolution either.
- * A fixed dark theme regardless of the app's own light/dark scheme — the
- * user asked for Dracula specifically, not "Dracula in dark mode only".
+ * Build the CodeMirror theme extensions (base surface + syntax highlighting)
+ * for one theme spec. Hand-rolled as a plain `EditorView.theme` +
+ * `HighlightStyle` rather than pulling in `@uiw/codemirror-theme-*`: those
+ * packages' CJS builds require `@babel/runtime` helpers that don't resolve in
+ * this browser bundle (no Node module resolution at runtime), and their ESM
+ * builds weren't picked up by the bundler's export-conditions resolution
+ * either. The palettes themselves live in {@link ./editor-theme.ts} (pure
+ * data, unit-testable without CodeMirror); this function just materializes
+ * one spec into extensions. A theme is fixed regardless of the app's own
+ * light/dark scheme — the user picks a palette, not "this palette when dark".
  */
-const dracula: readonly [Extension, Extension] = [
-  EditorView.theme({
-    '&': { height: '100%', backgroundColor: '#282a36', color: '#f8f8f2' },
-    '.cm-content': { caretColor: '#f8f8f2', fontFamily: 'var(--ds-font-family-code)' },
-    '.cm-cursor, .cm-dropCursor': { borderLeftColor: '#f8f8f2' },
-    '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': { backgroundColor: '#44475a' },
-    '.cm-activeLine': { backgroundColor: '#44475a55' },
-    '.cm-gutters': { backgroundColor: '#282a36', color: '#6272a4', border: 'none' },
-    '.cm-activeLineGutter': { backgroundColor: '#44475a55' },
-    '.cm-selectionMatch': { backgroundColor: '#44475a' },
-  }, { dark: true }),
-  syntaxHighlighting(HighlightStyle.define([
-    { tag: tags.keyword, color: '#ff79c6' },
-    { tag: [tags.name, tags.deleted, tags.character, tags.propertyName, tags.macroName], color: '#f8f8f2' },
-    { tag: [tags.function(tags.variableName), tags.labelName], color: '#50fa7b' },
-    { tag: [tags.color, tags.constant(tags.name), tags.standard(tags.name)], color: '#bd93f9' },
-    { tag: [tags.definition(tags.name), tags.separator], color: '#f8f8f2' },
-    { tag: [tags.typeName, tags.className, tags.number, tags.changed, tags.annotation, tags.modifier, tags.self, tags.namespace], color: '#bd93f9' },
-    { tag: [tags.operator, tags.operatorKeyword, tags.url, tags.escape, tags.regexp, tags.link, tags.special(tags.string)], color: '#ff79c6' },
-    { tag: [tags.meta, tags.comment], color: '#6272a4' },
-    { tag: tags.strong, fontWeight: 'bold' },
-    { tag: tags.emphasis, fontStyle: 'italic' },
-    { tag: tags.strikethrough, textDecoration: 'line-through' },
-    { tag: tags.link, color: '#8be9fd', textDecoration: 'underline' },
-    { tag: tags.heading, fontWeight: 'bold', color: '#bd93f9' },
-    { tag: [tags.atom, tags.bool, tags.special(tags.variableName)], color: '#bd93f9' },
-    { tag: [tags.processingInstruction, tags.string, tags.inserted], color: '#f1fa8c' },
-    { tag: tags.invalid, color: '#ff5555' },
-  ])),
-]
+function themeExtensions(spec: EditorThemeSpec): readonly [Extension, Extension] {
+  const { base, tokens } = spec
+  // Rule ORDER MATTERS: at equal specificity the later rule wins, so the
+  // link-specific rule must come AFTER the operator group (which also tags
+  // `tags.link` with the operator color) — the same ordering as the original
+  // hand-rolled Dracula list this generalizes.
+  const rules: TagStyle[] = []
+  if (tokens.keyword !== undefined) rules.push({ tag: tags.keyword, color: tokens.keyword })
+  rules.push({ tag: [tags.name, tags.deleted, tags.character, tags.propertyName, tags.macroName], color: base.foreground })
+  if (tokens.function !== undefined) rules.push({ tag: [tags.function(tags.variableName), tags.labelName], color: tokens.function })
+  if (tokens.constant !== undefined) rules.push({ tag: [tags.color, tags.constant(tags.name), tags.standard(tags.name)], color: tokens.constant })
+  rules.push({ tag: [tags.definition(tags.name), tags.separator], color: base.foreground })
+  if (tokens.type !== undefined) rules.push({ tag: [tags.typeName, tags.className, tags.number, tags.changed, tags.annotation, tags.modifier, tags.self, tags.namespace], color: tokens.type })
+  if (tokens.operator !== undefined) rules.push({ tag: [tags.operator, tags.operatorKeyword, tags.url, tags.escape, tags.regexp, tags.link, tags.special(tags.string)], color: tokens.operator })
+  if (tokens.comment !== undefined) rules.push({ tag: [tags.meta, tags.comment], color: tokens.comment })
+  rules.push({ tag: tags.strong, fontWeight: 'bold' })
+  rules.push({ tag: tags.emphasis, fontStyle: 'italic' })
+  rules.push({ tag: tags.strikethrough, textDecoration: 'line-through' })
+  if (tokens.link !== undefined) rules.push({ tag: tags.link, color: tokens.link, textDecoration: 'underline' })
+  if (tokens.heading !== undefined) rules.push({ tag: tags.heading, fontWeight: 'bold', color: tokens.heading })
+  if (tokens.atom !== undefined) rules.push({ tag: [tags.atom, tags.bool, tags.special(tags.variableName)], color: tokens.atom })
+  if (tokens.string !== undefined) rules.push({ tag: [tags.processingInstruction, tags.string, tags.inserted], color: tokens.string })
+  if (tokens.invalid !== undefined) rules.push({ tag: tags.invalid, color: tokens.invalid })
+  return [
+    EditorView.theme({
+      '&': { height: '100%', backgroundColor: base.background, color: base.foreground },
+      '.cm-content': { caretColor: base.caret, fontFamily: 'var(--ds-font-family-code)' },
+      '.cm-cursor, .cm-dropCursor': { borderLeftColor: base.caret },
+      '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': { backgroundColor: base.selection },
+      '.cm-activeLine': { backgroundColor: base.activeLine },
+      '.cm-gutters': { backgroundColor: base.gutterBackground, color: base.gutterForeground, border: 'none' },
+      '.cm-activeLineGutter': { backgroundColor: base.activeLineGutter },
+      '.cm-selectionMatch': { backgroundColor: base.selection },
+    }, { dark: spec.dark }),
+    syntaxHighlighting(HighlightStyle.define(rules)),
+  ]
+}
+
+/**
+ * The FULL extension list for a freshly-built (or reconfigured) editor view.
+ * Module-scoped (not a component closure) so the mount effect and the
+ * live-retheme effect build identical state from the same source — a
+ * reconfigure that silently dropped the keymap or the dirty listener would
+ * break save/unsaved reporting.
+ *
+ * @param path - the open file (drives the language extension).
+ * @param themePref - the raw stored theme pref (`'auto'` / a preset id).
+ * @param saveFn - the Cmd/Ctrl+S handler.
+ * @param onDocChange - called with the new doc text on every doc change.
+ */
+function editorExtensions(path: string, themePref: string, saveFn: () => void, onDocChange: (content: string) => void): Extension[] {
+  const spec = editorThemeSpec(resolveEditorThemeId(themePref, isDarkScheme()))
+  return [
+    basicSetup,
+    ...themeExtensions(spec),
+    ...languageFor(path),
+    // Soft-wrap long lines instead of relying on horizontal scroll:
+    // this editor's main use is Notes (prose/markdown), where
+    // horizontal scrolling to read a long line is much worse than
+    // wrapping. Applies to code files too — a bare CSS/JS line
+    // rarely runs long enough for wrapping to hurt readability.
+    EditorView.lineWrapping,
+    keymap.of([{ key: 'Mod-s', run: (): boolean => { saveFn(); return true } }]),
+    EditorView.updateListener.of((update) => {
+      if (update.docChanged) onDocChange(update.state.doc.toString())
+    }),
+  ]
+}
 
 type LoadState = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready' }
 
@@ -120,6 +169,23 @@ export function CodeEditor({ path, initialLine, onDirtyChange }: CodeEditorProps
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
+
+  // --- Theme (Settings → Powerdesk → Appearance → "Codemirror theme") ----
+  const prefs = useTerminalPrefs()
+  const themeId = prefs.editorTheme
+  // Latest-value refs: the mount effect builds the view after an awaited
+  // fsRead, and the live-retheme effects read through these, so a prefs
+  // change landing mid-load (or a path change reusing a stale closure) must
+  // never see a stale theme/file. Assigning during render is the standard
+  // "latest value" pattern for refs a component owns.
+  const themeIdRef = useRef(themeId)
+  themeIdRef.current = themeId
+  const pathRef = useRef(path)
+  pathRef.current = path
+  // The CONCRETE theme id the mounted view was (re)built with — the guard
+  // for both live-retheme paths (a pref change, or a scheme flip while the
+  // pref follows the scheme). Null until the first view is built.
+  const viewThemeIdRef = useRef<string | null>(null)
 
   const save = (): void => {
     // No Save BUTTON gates this anymore (Cmd/Ctrl+S only — see the keymap
@@ -142,6 +208,26 @@ export function CodeEditor({ path, initialLine, onDirtyChange }: CodeEditorProps
     })
   }
 
+  /**
+   * Re-theme the MOUNTED view for a given raw pref value. A
+   * `StateEffect.reconfigure` swap — the doc, selection, and undo history
+   * survive (rebuilding the state would drop them). No-ops while no view is
+   * mounted (the mount effect builds one with the current pref) and while
+   * the view already carries the resolved theme.
+   */
+  const applyTheme = (themePref: string): void => {
+    const view = viewRef.current
+    if (view === null) return
+    const concrete = resolveEditorThemeId(themePref, isDarkScheme())
+    if (viewThemeIdRef.current === concrete) return
+    viewThemeIdRef.current = concrete
+    view.dispatch({
+      effects: StateEffect.reconfigure.of(
+        editorExtensions(pathRef.current, themePref, save, (content) => { setDirty(content !== savedContentRef.current) }),
+      ),
+    })
+  }
+
   useEffect(() => {
     let cancelled = false
     setState({ status: 'loading' })
@@ -153,27 +239,18 @@ export function CodeEditor({ path, initialLine, onDirtyChange }: CodeEditorProps
       const host = hostRef.current
       if (host === null) return
       viewRef.current?.destroy()
+      // Build with the LATEST theme pref (the ref, not the mount-render
+      // closure — a prefs write may have landed while fsRead was in flight)
+      // and record the concrete theme the view now carries.
+      const builtThemePref = themeIdRef.current
       viewRef.current = new EditorView({
         parent: host,
         state: EditorState.create({
           doc: result.content,
-          extensions: [
-            basicSetup,
-            ...dracula,
-            ...languageFor(path),
-            // Soft-wrap long lines instead of relying on horizontal scroll:
-            // this editor's main use is Notes (prose/markdown), where
-            // horizontal scrolling to read a long line is much worse than
-            // wrapping. Applies to code files too — a bare CSS/JS line
-            // rarely runs long enough for wrapping to hurt readability.
-            EditorView.lineWrapping,
-            keymap.of([{ key: 'Mod-s', run: (): boolean => { save(); return true } }]),
-            EditorView.updateListener.of((update) => {
-              if (update.docChanged) setDirty(update.state.doc.toString() !== savedContentRef.current)
-            }),
-          ],
+          extensions: editorExtensions(path, builtThemePref, save, (content) => { setDirty(content !== savedContentRef.current) }),
         }),
       })
+      viewThemeIdRef.current = resolveEditorThemeId(builtThemePref, isDarkScheme())
       // Initial jump for a freshly-opened tab: by the time this mounts,
       // `service.openFileAtLine` has already set tab.meta.line synchronously
       // (openFile then updateTab, both before React's next render), so the
@@ -194,6 +271,26 @@ export function CodeEditor({ path, initialLine, onDirtyChange }: CodeEditorProps
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path])
+
+  // Live re-theme when the stored pref CHANGES (no remount — a
+  // StateEffect.reconfigure preserves the doc, selection, and undo history).
+  // `applyTheme` is deliberately not a dep (it gains a fresh identity every
+  // render): the guard inside it no-ops when the view already carries the
+  // resolved theme, so the extra re-runs it would cause are harmless. On a
+  // `path` change the mount effect rebuilds the view with the CURRENT pref
+  // and sets viewThemeIdRef, so this effect's guard no-ops for that too.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { applyTheme(themeId) }, [themeId])
+
+  // Live re-theme on an app-scheme flip while the pref follows the scheme
+  // ('' / 'auto') — mirrors ResttyTerminal's subscribeColorScheme re-theme,
+  // so "System default" tracks light/dark like the terminal's does.
+  const followsScheme = themeId.trim() === '' || themeId.trim() === 'auto'
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!followsScheme) return undefined
+    return subscribeColorScheme(() => { applyTheme(themeIdRef.current) })
+  }, [followsScheme])
 
   // A search-result click on a file that is ALREADY open (same `path`, so
   // the mount effect above doesn't rerun and the view stays alive) still
