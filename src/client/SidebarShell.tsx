@@ -255,7 +255,8 @@ export function SidebarShell(props: { ctx: Context; store: SidebarStore; service
     // Per-tab one-line descriptions for the empty-state "new page" cards.
     // Keyed by the stable tab id literal each descriptor carries (terminal
     // = 'dsh-powerdesk:terminal', explorer = 'dsh-powerdesk:explorer',
-    // notes = 'dsh-powerdesk:notes', browser = 'dsh-powerdesk:browser').
+    // notes = 'dsh-powerdesk:notes', browser = 'dsh-powerdesk:browser',
+    // calendar = 'dsh-powerdesk:calendar').
     // Search is a mode of the Explorer tab (its header's search toggle), not
     // a separate registered tab type — see FileExplorer.tsx.
     // Unknown tabs (e.g. an extension tab) get no description — the card
@@ -265,6 +266,7 @@ export function SidebarShell(props: { ctx: Context; store: SidebarStore; service
       'dsh-powerdesk:explorer': t('cardExplorerDesc'),
       'dsh-powerdesk:notes': t('cardNotesDesc'),
       'dsh-powerdesk:browser': t('cardBrowserDesc'),
+      'dsh-powerdesk:calendar': t('cardCalendarDesc'),
     }
     return service.getTabs()
       .filter(descriptor => descriptor.hidden !== true && service.isTabEnabled(descriptor.id))
