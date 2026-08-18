@@ -355,7 +355,6 @@ export function TerminalAppearancePanel(): ReactNode {
       </div>
 
       <p className={css.appearanceHint}>{t('appearanceFontHint')}</p>
-      <p className={css.appearanceReopenHint}>{t('appearanceReopenHint')}</p>
     </div>
   )
 }

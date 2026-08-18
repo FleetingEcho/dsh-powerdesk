@@ -10,9 +10,25 @@
  * Reactivity: {@link writePrefsToLocalStorage} persists the patch and notifies
  * the {@link subscribeTerminalPrefs} listeners; `useSyncExternalStore`
  * (see {@link ./useTerminalPrefs.ts}) binds a component to the snapshot so it
- * re-reads on change. Font family/weight still only take effect on the next
- * terminal tab open (restty has no live setter), but theme re-applies live
- * where restty exposes one.
+ * re-reads on change. restty has no live setter for font family/weight/size,
+ * so `ResttyTerminal` remounts (destroy + recreate, reconnecting to the SAME
+ * pty session) to pick up a change — an already-OPEN terminal updates, no
+ * need to open a new tab. Theme re-applies live where restty exposes a
+ * setter, no remount needed.
+ *
+ * Cross-chunk notification: `terminal`/`browser`/`editor`/`settings` are
+ * separate lazy-loaded bundles (tsdown `codeSplitting: false`), so each one
+ * that imports this file gets its OWN COPY of the module — including the
+ * `listeners` Set below. A write performed in one chunk's copy (e.g. the
+ * Settings card, which now lives in the `settings` chunk) would never reach
+ * a `useTerminalPrefs()` subscriber living in a DIFFERENT chunk's copy if
+ * notification only walked that local Set — the terminal would silently
+ * stop picking up live prefs changes. `window` is the one thing every chunk
+ * genuinely shares (same document), so {@link writePrefsToLocalStorage}
+ * broadcasts a `window` CustomEvent instead of calling the local notifier
+ * directly; every module instance (including the writer's own) listens for
+ * that event and re-syncs from localStorage — one code path, chunk-count
+ * agnostic.
  */
 import type { SidebarStore } from './service.ts';
 /** The tab id this plugin registers (kept for `readPrefsFromStore` callers). */

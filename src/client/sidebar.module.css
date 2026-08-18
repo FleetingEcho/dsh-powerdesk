@@ -870,6 +870,12 @@
    directory reveals its children gently (stable keys keep existing rows from
    replaying it). */
 .explorerRow {
+  /* Explicit, not relying on an ambient reset: at deeper indent depths
+     (paddingLeft grows with tree depth) a content-box row adds its padding
+     ON TOP of width:100%, overflowing the container by exactly the indent
+     amount and clipping the hover-revealed action buttons off-screen — a
+     real bug (not just at extreme depth; a few levels was enough). */
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -2743,13 +2749,8 @@
   color: var(--dsw-alias-label-secondary);
 }
 
-.appearanceHint,
-.appearanceReopenHint {
+.appearanceHint {
   margin: 8px 0 0;
   font: var(--dsw-font-xxs-12);
   color: var(--dsw-alias-label-tertiary);
-}
-
-.appearanceReopenHint {
-  font-style: italic;
 }

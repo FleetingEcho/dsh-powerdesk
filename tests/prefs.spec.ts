@@ -8,8 +8,10 @@ import {
   TERMINAL_FONT_WEIGHT_DEFAULT,
   clampResttyFontSize,
   clampResttyFontWeight,
+  getTerminalPrefsSnapshot,
   mergePrefs,
   readPrefsFromLocalStorage,
+  subscribeTerminalPrefs,
   writePrefsToLocalStorage,
 } from '../src/client/prefs.ts'
 
@@ -83,5 +85,31 @@ describe('prefs', () => {
     const next = writePrefsToLocalStorage({ fontSize: 5 })
     expect(next.fontSize).toBe(TERMINAL_FONT_SIZE_MIN)
     expect(readPrefsFromLocalStorage().fontSize).toBe(TERMINAL_FONT_SIZE_MIN)
+  })
+
+  it('writePrefsToLocalStorage notifies subscribers with a fresh snapshot', () => {
+    let calls = 0
+    const unsubscribe = subscribeTerminalPrefs(() => { calls += 1 })
+    writePrefsToLocalStorage({ fontSize: 22 })
+    expect(calls).toBe(1)
+    expect(getTerminalPrefsSnapshot().fontSize).toBe(22)
+    unsubscribe()
+  })
+
+  it('a write broadcast on window (simulating a DIFFERENT lazy chunk\'s copy of this module) still notifies this instance\'s subscribers', () => {
+    // Regression test: terminal/browser/editor/settings are separate bundles
+    // (tsdown codeSplitting: false), each importing its OWN copy of this
+    // module. A write performed in one chunk must still reach a subscriber
+    // registered in another — that's what the shared `window` CustomEvent
+    // is for (see the module doc). Simulate the "other chunk" by writing
+    // straight to localStorage and dispatching the event ourselves, bypassing
+    // this instance's own writePrefsToLocalStorage entirely.
+    let calls = 0
+    const unsubscribe = subscribeTerminalPrefs(() => { calls += 1 })
+    localStorage.setItem(PREFS_STORAGE_KEY, JSON.stringify({ ...DEFAULT_PREFS, fontSize: 28 }))
+    window.dispatchEvent(new Event('dsh-powerdesk:prefs-changed'))
+    expect(calls).toBe(1)
+    expect(getTerminalPrefsSnapshot().fontSize).toBe(28)
+    unsubscribe()
   })
 })

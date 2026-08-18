@@ -127,7 +127,7 @@ const en: Dict = {
   extInstalledOk: 'Installed "{title}". Open it from the sidebar + menu.',
   // Terminal appearance (Powerdesk Side card)
   appearanceHeading: 'Terminal appearance',
-  appearanceIntro: 'Pick a font, weight, size, and theme for the terminal. Font and size changes apply to the next terminal tab you open.',
+  appearanceIntro: 'Pick a font, weight, size, and theme for the terminal. Changes apply immediately to any open terminal (a brief reconnect, same session).',
   appearanceFontFamily: 'Font',
   appearanceFontFamilyAuto: 'System default',
   appearanceFontFamilyManual: 'Type a font name…',
@@ -137,7 +137,6 @@ const en: Dict = {
   appearanceTheme: 'Theme',
   appearanceFontHint: 'Lists your installed system fonts (incl. Nerd Fonts). On browsers without the Local Font Access API (Firefox/Safari), type the family name instead.',
   appearanceThemeHint: '“System default” follows light/dark.',
-  appearanceReopenHint: 'Font changes take effect on the next terminal tab you open.',
   themeAuto: 'System default',
   themeTokyoNight: 'Tokyo Night',
   themeTokyoNightStorm: 'Tokyo Night Storm',
@@ -298,7 +297,7 @@ const zh: Dict = {
   extInstalledOk: '已安装“{title}”。可从侧边栏 + 菜单打开。',
   // 终端外观（Powerdesk 设置卡片）
   appearanceHeading: '终端外观',
-  appearanceIntro: '选择终端的字体、字重、字号与主题。字体与字号更改将在下次打开终端标签页时生效。',
+  appearanceIntro: '选择终端的字体、字重、字号与主题。更改会立即应用到已打开的终端（短暂重连，同一会话）。',
   appearanceFontFamily: '字体',
   appearanceFontFamilyAuto: '系统默认',
   appearanceFontFamilyManual: '输入字体名…',
@@ -308,7 +307,6 @@ const zh: Dict = {
   appearanceTheme: '主题',
   appearanceFontHint: '列出你系统中已安装的字体（含 Nerd Fonts）。在不支持本地字体访问 API 的浏览器（Firefox/Safari）上，请改为手动输入字体名。',
   appearanceThemeHint: '“系统默认”跟随明暗模式。',
-  appearanceReopenHint: '字体更改将在下次打开终端标签页时生效。',
   themeAuto: '系统默认',
   themeTokyoNight: 'Tokyo Night',
   themeTokyoNightStorm: 'Tokyo Night Storm',

@@ -10,9 +10,25 @@
  * Reactivity: {@link writePrefsToLocalStorage} persists the patch and notifies
  * the {@link subscribeTerminalPrefs} listeners; `useSyncExternalStore`
  * (see {@link ./useTerminalPrefs.ts}) binds a component to the snapshot so it
- * re-reads on change. Font family/weight still only take effect on the next
- * terminal tab open (restty has no live setter), but theme re-applies live
- * where restty exposes one.
+ * re-reads on change. restty has no live setter for font family/weight/size,
+ * so `ResttyTerminal` remounts (destroy + recreate, reconnecting to the SAME
+ * pty session) to pick up a change — an already-OPEN terminal updates, no
+ * need to open a new tab. Theme re-applies live where restty exposes a
+ * setter, no remount needed.
+ *
+ * Cross-chunk notification: `terminal`/`browser`/`editor`/`settings` are
+ * separate lazy-loaded bundles (tsdown `codeSplitting: false`), so each one
+ * that imports this file gets its OWN COPY of the module — including the
+ * `listeners` Set below. A write performed in one chunk's copy (e.g. the
+ * Settings card, which now lives in the `settings` chunk) would never reach
+ * a `useTerminalPrefs()` subscriber living in a DIFFERENT chunk's copy if
+ * notification only walked that local Set — the terminal would silently
+ * stop picking up live prefs changes. `window` is the one thing every chunk
+ * genuinely shares (same document), so {@link writePrefsToLocalStorage}
+ * broadcasts a `window` CustomEvent instead of calling the local notifier
+ * directly; every module instance (including the writer's own) listens for
+ * that event and re-syncs from localStorage — one code path, chunk-count
+ * agnostic.
  */
 import type { SidebarStore, SidebarPrefs } from './service.ts'
 
@@ -155,11 +171,24 @@ export function readPrefsFromLocalStorage(): ResttyPrefs {
 let cachedSnapshot: ResttyPrefs = readPrefsFromLocalStorage()
 const listeners = new Set<() => void>()
 
+/** The cross-chunk broadcast channel — see the module doc's "Cross-chunk
+ *  notification" section for why this exists instead of a plain in-memory
+ *  notify. */
+const PREFS_CHANGED_EVENT = 'dsh-powerdesk:prefs-changed'
+
 function notifyTerminalPrefs(): void {
   cachedSnapshot = readPrefsFromLocalStorage()
   for (const listener of listeners) {
     try { listener() } catch { /* a throwing subscriber must not break the rest */ }
   }
+}
+
+// Every module instance (one per chunk that imports this file) listens for
+// the shared window event so a write from ANY chunk resyncs ALL of them —
+// registered once at module load, independent of whether this particular
+// instance currently has any React subscribers.
+if (typeof window !== 'undefined') {
+  window.addEventListener(PREFS_CHANGED_EVENT, notifyTerminalPrefs)
 }
 
 /**
@@ -197,6 +226,14 @@ export function writePrefsToLocalStorage(patch: Partial<ResttyPrefs>): ResttyPre
       // notify so the UI reflects the change until reload).
     }
   }
-  notifyTerminalPrefs()
+  // Broadcast on `window` rather than calling notifyTerminalPrefs() directly
+  // — this module instance's own listener (registered above) picks it up
+  // the same way every OTHER chunk's copy does, so there is exactly one
+  // notification code path regardless of which chunk wrote the change.
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(PREFS_CHANGED_EVENT))
+  } else {
+    notifyTerminalPrefs()
+  }
   return next
 }
