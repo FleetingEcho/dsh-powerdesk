@@ -10,7 +10,6 @@
  * a few hundred KB) — never import this from the core client bundle.
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import clsx from 'clsx'
 import { EditorView, basicSetup } from 'codemirror'
 import { EditorSelection, EditorState, type Extension } from '@codemirror/state'
 import { keymap } from '@codemirror/view'
@@ -35,6 +34,10 @@ export interface CodeEditorProps {
    *  changes while the SAME file stays open (Search tab result clicks —
    *  see EditorTabView / service.openFileAtLine). */
   initialLine?: number
+  /** Reports unsaved-changes state so the TAB ITSELF shows the indicator
+   *  (see TabBar.tsx's `tab.meta.dirty` dot) — there is no in-pane header
+   *  bar for this anymore. */
+  onDirtyChange?: (dirty: boolean) => void
 }
 
 /** Move the cursor to (and center-scroll) a 1-based line, clamped to the doc. */
@@ -46,12 +49,6 @@ function jumpToLine(view: EditorView, line: number): void {
     effects: EditorView.scrollIntoView(pos, { y: 'center' }),
   })
   view.focus()
-}
-
-function basenameOf(path: string): string {
-  const trimmed = path.replace(/[/\\]+$/, '')
-  const idx = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'))
-  return idx >= 0 ? trimmed.slice(idx + 1) : trimmed
 }
 
 /** Syntax highlighting extension by file extension; plain text otherwise
@@ -115,7 +112,7 @@ const dracula: readonly [Extension, Extension] = [
 
 type LoadState = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready' }
 
-export function CodeEditor({ path, initialLine }: CodeEditorProps): ReactNode {
+export function CodeEditor({ path, initialLine, onDirtyChange }: CodeEditorProps): ReactNode {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const viewRef = useRef<EditorView | null>(null)
   const savedContentRef = useRef('')
@@ -125,6 +122,10 @@ export function CodeEditor({ path, initialLine }: CodeEditorProps): ReactNode {
   const [saveError, setSaveError] = useState('')
 
   const save = (): void => {
+    // No Save BUTTON gates this anymore (Cmd/Ctrl+S only — see the keymap
+    // below), so guard against overlapping writes from a rapid repeat press
+    // here instead of relying on a disabled prop that no longer exists.
+    if (saving) return
     const view = viewRef.current
     if (view === null) return
     const content = view.state.doc.toString()
@@ -223,18 +224,20 @@ export function CodeEditor({ path, initialLine }: CodeEditorProps): ReactNode {
     return () => { observer.disconnect() }
   }, [])
 
+  // Report unsaved-changes state up to the tab strip (TabBar.tsx's
+  // `tab.meta.dirty` dot) instead of a persistent in-pane header bar.
+  // `onDirtyChange` is deliberately NOT a dep: SplitPane.tsx's TabContent
+  // passes a fresh inline closure every render, and calling it triggers a
+  // store update that re-renders TabContent — including it here re-fires
+  // the effect on THAT re-render (new closure identity) even though `dirty`
+  // itself hasn't changed, an infinite loop (caught live as React error
+  // #185 / "Maximum update depth exceeded").
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { onDirtyChange?.(dirty) }, [dirty])
+
   return (
     <div className={css.editor}>
-      <div className={css.editorHeader}>
-        {dirty && <span className={css.dirtyDot} aria-hidden="true" />}
-        <span className={css.editorTitle} title={path}>{basenameOf(path)}</span>
-        <span className={clsx(css.editorStatus, saveError !== '' && css.editorStatusError)}>
-          {saveError !== '' ? saveError : saving ? t('editorSaving') : dirty ? t('editorUnsaved') : t('editorSaved')}
-        </span>
-        <button type="button" className={css.explorerRef} onClick={save} disabled={!dirty || saving}>
-          {t('editorSave')}
-        </button>
-      </div>
+      {saveError !== '' && <div className={css.editorError}>{saveError}</div>}
       {state.status === 'loading' && <div className={css.editorPlaceholder}>{t('loading')}</div>}
       {state.status === 'error' && <div className={css.editorError}>{state.message}</div>}
       {/* `display: 'block'`, NOT 'flex' — this div is CodeMirror's mount

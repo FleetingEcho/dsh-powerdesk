@@ -68,6 +68,15 @@ function buildResttyTheme(prefs: ResttyPrefs): GhosttyTheme | undefined {
     theme = undefined
   }
   if (theme === undefined) return undefined
+  // Only blend in the HOST APP's own paint tokens when the user is
+  // following the app's scheme ('auto'/blank) — that blend exists so an
+  // auto-following terminal matches the surrounding panel. An EXPLICIT
+  // preset (e.g. "Tokyo Night") must render with ITS OWN authentic colors:
+  // overriding them unconditionally meant picking a specific dark theme
+  // still rendered light whenever the HOST app itself happened to be in
+  // light mode — the theme choice and the host's scheme are independent,
+  // and only 'auto' is supposed to couple them.
+  if (prefs.themeName.trim() !== '' && prefs.themeName.trim() !== 'auto') return theme
   // effectiveTokenValue returns a computed CSS color STRING (e.g.
   // "rgb(21, 21, 23)"), but GhosttyTheme.colors.background/foreground are
   // typed as ThemeColor OBJECTS ({r,g,b,a}, 0-255) — restty's WebGPU
@@ -245,7 +254,20 @@ export function ResttyTerminal({ scope, tabId, prefs, visible = true }: ResttyTe
           // guaranteed JetBrains Mono URL fallback for browsers without the
           // Local Font Access API) and appends restty's own default emoji/
           // symbol/CJK sources. `weight` is honored by restty's family input.
-          terminal: { renderer: 'auto', fontSize: font.fontSize, fonts: resolveTerminalFontInputs(font.fontFamily, font.fontWeight), theme },
+          // `fontHinting: true` (restty defaults it OFF) snaps glyph stems to
+          // pixel boundaries during atlas rasterization — without it, small
+          // terminal-sized text renders noticeably softer than CodeMirror's
+          // natively-hinted DOM text, which is exactly the "blurry compared
+          // to the editor" symptom this fixes. `fontHintTarget: 'auto'` lets
+          // restty pick light/normal hinting per its own pixel-mode heuristic.
+          terminal: {
+            renderer: 'auto',
+            fontSize: font.fontSize,
+            fontHinting: true,
+            fontHintTarget: 'auto',
+            fonts: resolveTerminalFontInputs(font.fontFamily, font.fontWeight),
+            theme,
+          },
           services: { ptyTransport: transport },
         })
       } catch (error) {

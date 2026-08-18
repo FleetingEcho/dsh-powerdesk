@@ -207,7 +207,16 @@ function buildApi(
     // Search tab: content search over a directory via ripgrep (see
     // search-api.ts / search-deps.ts). `search.deps` mirrors `terminal.deps`
     // — the client fetches it to show a repair banner when `rg` is missing.
-    'search.grep': (payload) => searchGrep(requireString(payload, 'path'), requireString(payload, 'query')),
+    'search.grep': (payload) => {
+      const path = requireString(payload, 'path')
+      const query = requireString(payload, 'query')
+      const record = payload as { matchCase?: unknown; wholeWord?: unknown; useRegex?: unknown } | null
+      return searchGrep(path, query, {
+        matchCase: record?.matchCase === true,
+        wholeWord: record?.wholeWord === true,
+        useRegex: record?.useRegex === true,
+      })
+    },
     'search.deps': () => searchDepsStatus(),
     // ── User-installed extensions ─────────────────────────────────────────
     // `ext.list` answers even while the feature is disabled, so the settings

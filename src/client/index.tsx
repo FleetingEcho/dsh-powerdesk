@@ -269,13 +269,22 @@ function ExplorerTabView(props: TabComponentProps): ReactNode {
  * rather than crashing the pane.
  */
 function EditorTabView(props: TabComponentProps): ReactNode {
-  const { tab, visible } = props as { tab: SidebarTab; visible?: boolean }
+  const { tab, visible, onDirtyChange } = props as {
+    tab: SidebarTab
+    visible?: boolean
+    onDirtyChange?: (dirty: boolean) => void
+  }
   if (tab.path === undefined) return null
   // Set by `service.openFileAtLine` (Search tab result clicks) — a plain
   // `meta` field, not a new SidebarTab field, so it rides the existing
   // `updateTab({meta})` patch path with no state-tree changes.
   const initialLine = (tab.meta as { line?: number } | undefined)?.line
-  return createElement(CodeEditorLazy, { path: tab.path, visible: visible ?? true, initialLine })
+  return createElement(CodeEditorLazy, {
+    path: tab.path,
+    visible: visible ?? true,
+    initialLine,
+    onDirtyChange: onDirtyChange ?? ((): void => {}),
+  })
 }
 
 /** Build the explorer tab descriptor. `single: true` — one explorer tab per

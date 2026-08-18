@@ -17,5 +17,9 @@ export interface CodeEditorProps {
      *  changes while the SAME file stays open (Search tab result clicks —
      *  see EditorTabView / service.openFileAtLine). */
     initialLine?: number;
+    /** Reports unsaved-changes state so the TAB ITSELF shows the indicator
+     *  (see TabBar.tsx's `tab.meta.dirty` dot) — there is no in-pane header
+     *  bar for this anymore. */
+    onDirtyChange?: (dirty: boolean) => void;
 }
-export declare function CodeEditor({ path, initialLine }: CodeEditorProps): ReactNode;
+export declare function CodeEditor({ path, initialLine, onDirtyChange }: CodeEditorProps): ReactNode;

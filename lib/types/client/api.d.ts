@@ -55,6 +55,15 @@ export interface SearchGrepResult {
     /** True when the server-side match/time cap cut the search short. */
     truncated: boolean;
 }
+/** The search box's modifier toggles (mirror of the host's SearchOptions). */
+export interface SearchOptions {
+    /** "Aa" — case-sensitive (default: case-insensitive). */
+    matchCase?: boolean;
+    /** "ab" (underlined) — whole-word only. */
+    wholeWord?: boolean;
+    /** ".*" — treat the query as a regex (default: literal string). */
+    useRegex?: boolean;
+}
 /** One browser.probe wire result (the host's fetch of the target's headers). */
 export type BrowserProbeResult = {
     reachable: boolean;
@@ -180,8 +189,9 @@ export declare const api: {
     fsHome: (signal?: AbortSignal) => Promise<{
         path: string;
     }>;
-    /** Content search over a directory via ripgrep (Search tab). */
-    searchGrep: (path: string, query: string, signal?: AbortSignal) => Promise<SearchGrepResult>;
+    /** Content search over a directory via ripgrep (Search tab). `options` are
+     *  the search box's modifier toggles ("Aa" / "ab" / ".*"). */
+    searchGrep: (path: string, query: string, options?: SearchOptions, signal?: AbortSignal) => Promise<SearchGrepResult>;
     /** Ripgrep dependency status: fetched when the Search tab needs to show a
      *  repair banner (no `/powerdesk/ws/*` upgrade to close-marker off of here
      *  — search is a plain buffered POST, so the client just checks this

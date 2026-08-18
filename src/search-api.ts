@@ -37,6 +37,19 @@ export interface SearchGrepResult {
   truncated: boolean
 }
 
+/** The search box's modifier toggles (VSCode's "Aa" / "ab" / ".*"). */
+export interface SearchOptions {
+  /** "Aa" — case-sensitive. Off (default) is case-INsensitive (`rg -i`); rg
+   *  is case-sensitive by default, so "on" needs no extra flag. */
+  matchCase?: boolean
+  /** "ab" (underlined) — whole-word only (`rg -w`). */
+  wholeWord?: boolean
+  /** ".*" — treat `query` as a regex (rg's own default). Off (default)
+   *  treats it as a literal string (`rg -F`) — matches VSCode's default
+   *  (plain-text search unless you opt into regex). */
+  useRegex?: boolean
+}
+
 /** Cap total matches across all files (bounds worst-case latency/memory). */
 const MAX_MATCHES = 500
 /** Cap matches per file (one huge generated file shouldn't eat the whole budget). */
@@ -54,17 +67,17 @@ interface RgJsonMatch {
   }
 }
 
-/** Search `path` recursively for `query` (a ripgrep regex pattern). */
-export async function searchGrep(path: string, query: string): Promise<SearchGrepResult> {
+/** Search `path` recursively for `query`, honoring the search box's modifier toggles. */
+export async function searchGrep(path: string, query: string, options: SearchOptions = {}): Promise<SearchGrepResult> {
   if (query.trim() === '') return { files: [], truncated: false }
   const rg = resolveRipgrepPath()
   if (rg === null) {
     throw new ResttyError('search-deps-missing', 'ripgrep is not available — run the repair command shown in the Search tab', 503)
   }
-  return runRipgrep(rg, resolvePath(path), query)
+  return runRipgrep(rg, resolvePath(path), query, options)
 }
 
-function runRipgrep(rg: string, cwd: string, query: string): Promise<SearchGrepResult> {
+function runRipgrep(rg: string, cwd: string, query: string, options: SearchOptions): Promise<SearchGrepResult> {
   return new Promise((resolvePromise, reject) => {
     const files = new Map<string, SearchMatch[]>()
     let totalMatches = 0
@@ -73,7 +86,13 @@ function runRipgrep(rg: string, cwd: string, query: string): Promise<SearchGrepR
     let settled = false
     const stderrChunks: Buffer[] = []
 
-    const child = spawn(rg, ['--json', '-m', String(MAX_MATCHES_PER_FILE), '--max-filesize', '2M', '--', query, '.'], {
+    const args = ['--json', '-m', String(MAX_MATCHES_PER_FILE), '--max-filesize', '2M']
+    if (options.matchCase !== true) args.push('-i')
+    if (options.wholeWord === true) args.push('-w')
+    if (options.useRegex !== true) args.push('-F')
+    args.push('--', query, '.')
+
+    const child = spawn(rg, args, {
       cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
     })

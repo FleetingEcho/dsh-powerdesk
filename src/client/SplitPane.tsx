@@ -128,6 +128,9 @@ function TabContent(props: {
           store.reduce(makeRoomBesideExplorer)
           service.openFileAtLine(scope as TabComponentProps['scope'], path, line)
         },
+        onDirtyChange: (dirty: boolean) => {
+          service.updateTab(tab.id, { meta: { ...(tab.meta as Record<string, unknown> ?? {}), dirty } })
+        },
       } as TabComponentProps)}
     </RenderBoundary>
   )

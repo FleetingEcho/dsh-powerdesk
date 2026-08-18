@@ -1,7 +1,8 @@
 /**
  * The file explorer tab: a directory tree over one bookmarked local folder
- * (switchable — the header's folder button lists every bookmark, "+" adds
- * a typed path), clicking a file opens it in the editor tab via
+ * ("+" adds a typed path and makes it the new root, "-" removes it and falls
+ * back to the previous one — see explorer-prefs.ts; there is no separate
+ * folder-switcher UI), clicking a file opens it in the editor tab via
  * `onOpenFile` (wired to `service.openFile` in SplitPane.tsx). Also doubles
  * as a "notes" browser: point a bookmark at wherever you keep notes and
  * browse/open .md files the same way as any other folder.
@@ -16,9 +17,8 @@
  * (see explorer-prefs.ts) — independent of any session, so they persist
  * across reloads and are shared by every conversation.
  */
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import clsx from 'clsx'
-import { Menu } from '@deepseek-ai/dsh-client-ui-primitives'
 import { ChevronDown, ChevronRight, Copy, File, Folder, FolderMinus, FolderPlus, Search as SearchGlyph } from 'lucide-react'
 import { api, type FsEntry } from './api.ts'
 import {
@@ -237,7 +237,6 @@ function DirRow(props: TreeProps & { path: string; name: string; depth: number }
 export function FileExplorer(props: FileExplorerProps): ReactNode {
   const { cwd, expanded, onToggleDir, onOpenFile, onOpenFileAtLine } = props
   const [prefs, setPrefs] = useState(() => readExplorerPrefs())
-  const [menuOpen, setMenuOpen] = useState(false)
   const [picking, setPicking] = useState(false)
   const [dirs, setDirs] = useState<Map<string, DirState>>(new Map())
   // Files/Search are two modes of this ONE tab (mirrors VSCode's Explorer /
@@ -245,6 +244,12 @@ export function FileExplorer(props: FileExplorerProps): ReactNode {
   // pane open to reach — see SearchView.tsx for the search UI itself, reused
   // here unwrapped from its own tab chrome.
   const [mode, setMode] = useState<'files' | 'search'>('files')
+  const [rootCopied, setRootCopied] = useState(false)
+  useEffect(() => {
+    if (!rootCopied) return
+    const timer = window.setTimeout(() => { setRootCopied(false) }, 1200)
+    return () => { window.clearTimeout(timer) }
+  }, [rootCopied])
 
   const active = prefs.bookmarks.find(b => b.id === prefs.activeId)
   const root = active?.path ?? cwd ?? '.'
@@ -269,8 +274,6 @@ export function FileExplorer(props: FileExplorerProps): ReactNode {
   // Reload the root whenever it changes (bookmark switch, cwd change).
   useEffect(() => { load(root) }, [root, load])
 
-  const bookmarkOptions = useMemo(() => prefs.bookmarks.map(b => ({ id: b.id, label: b.label })), [prefs.bookmarks])
-
   const addBookmark = (path: string): void => {
     const trimmed = path.trim()
     if (trimmed === '') return
@@ -288,52 +291,52 @@ export function FileExplorer(props: FileExplorerProps): ReactNode {
   return (
     <div className={css.explorer}>
       <div className={css.explorerHeader}>
-        <Menu
-          open={menuOpen}
-          onClose={() => { setMenuOpen(false) }}
-          items={bookmarkOptions}
-          onSelect={(id) => {
-            persist({ ...prefs, activeId: id })
-            setMenuOpen(false)
-          }}
-          portal
-          align="start"
-          anchor={(
-            <button type="button" className={css.explorerRoot} onClick={() => { setMenuOpen(v => !v) }} title={root}>
-              {active?.label ?? root}
-            </button>
-          )}
-        />
-        <button
-          type="button"
-          className={clsx(css.explorerPill, mode === 'search' && css.explorerPillActive)}
-          title={t('searchTabTitle')}
-          aria-label={t('searchTabTitle')}
-          aria-pressed={mode === 'search'}
-          onClick={() => { setMode(m => m === 'search' ? 'files' : 'search') }}
-        >
-          <SearchGlyph size={13} aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          className={css.explorerPill}
-          title={t('explorerAddFolder')}
-          aria-label={t('explorerAddFolder')}
-          onClick={() => { setPicking(true) }}
-        >
-          <FolderPlus size={13} aria-hidden="true" />
-        </button>
-        {active !== undefined && (
+        <div className={css.explorerHeaderPath}>
+          {/* No bookmark-switcher trigger here: this pane's root is fixed
+              (session cwd, or whatever "+"/"-" below set it to) — Explorer
+              doesn't support changing folders in place, so a dropdown for
+              that never belonged here. Clicking the path just copies it. */}
+          <button
+            type="button"
+            className={css.explorerRoot}
+            onClick={() => { copyToClipboard(root, () => { setRootCopied(true) }) }}
+            title={root}
+          >
+            {rootCopied ? t('explorerCopied') : (active?.label ?? root)}
+          </button>
+        </div>
+        <div className={css.explorerHeaderActions}>
+          <button
+            type="button"
+            className={clsx(css.explorerPill, mode === 'search' && css.explorerPillActive)}
+            title={t('searchTabTitle')}
+            aria-label={t('searchTabTitle')}
+            aria-pressed={mode === 'search'}
+            onClick={() => { setMode(m => m === 'search' ? 'files' : 'search') }}
+          >
+            <SearchGlyph size={13} aria-hidden="true" />
+          </button>
           <button
             type="button"
             className={css.explorerPill}
-            title={t('explorerRemoveFolder')}
-            aria-label={t('explorerRemoveFolder')}
-            onClick={removeActive}
+            title={t('explorerAddFolder')}
+            aria-label={t('explorerAddFolder')}
+            onClick={() => { setPicking(true) }}
           >
-            <FolderMinus size={13} aria-hidden="true" />
+            <FolderPlus size={13} aria-hidden="true" />
           </button>
-        )}
+          {active !== undefined && (
+            <button
+              type="button"
+              className={css.explorerPill}
+              title={t('explorerRemoveFolder')}
+              aria-label={t('explorerRemoveFolder')}
+              onClick={removeActive}
+            >
+              <FolderMinus size={13} aria-hidden="true" />
+            </button>
+          )}
+        </div>
       </div>
       <FolderPicker
         open={picking}

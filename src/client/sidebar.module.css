@@ -478,6 +478,7 @@
    switching never tears down terminals/editors (state survives). */
 .paneTab {
   flex: 1;
+  min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -807,6 +808,7 @@
 
 .explorer {
   flex: 1;
+  min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -816,22 +818,47 @@
   flex: none;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
   height: 36px;
   padding: 0 8px 0 12px;
 }
 
+/* The path pill's flex-grow wrapper: takes all the space the action icons
+   (search / add-folder / remove-folder) don't need, so the path always
+   pins to the LEFT edge and the icons always cluster at the RIGHT edge —
+   they used to be flat siblings spread out by `justify-content:
+   space-between`, which spaced the search icon out into the middle of the
+   row instead of grouping it with the others. */
+.explorerHeaderPath {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.explorerHeaderActions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .explorerRoot {
+  flex: 1;
+  min-width: 0;
+  display: block;
   font: var(--dsw-font-s-14);
   color: var(--dsw-alias-label-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: left;
 }
 
 .explorerBody {
   flex: 1;
+  min-width: 0;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
@@ -1008,19 +1035,17 @@
    header (which sits at the base .explorerRow indent). */
 .searchMatchRow {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   width: 100%;
   min-width: 0;
-  height: 26px;
-  padding: 0 8px 0 30px;
+  min-height: 26px;
+  padding: 4px 8px 4px 30px;
   border: none;
   background: transparent;
   border-radius: 8px;
   cursor: pointer;
   text-align: left;
-  white-space: nowrap;
-  overflow: hidden;
 }
 
 .searchMatchRow:hover {
@@ -1030,26 +1055,65 @@
 .searchMatchLine {
   flex: none;
   min-width: 24px;
+  padding-top: 1px;
   font: var(--dsw-font-xxxs-11);
   color: var(--dsw-alias-label-tertiary);
   text-align: right;
   user-select: none;
 }
 
+/* Wraps rather than ellipsizing/scrolling — a long source line (or a match
+   near its end) must stay fully visible, never cut off past the panel's
+   width. Same rule the git-diff view already follows (see .gitDiffLine). */
 .searchMatchText {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
+  line-height: 1.5;
   color: var(--dsw-alias-label-secondary);
 }
 
 .searchMatchHighlight {
-  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 30%, transparent);
+  background: color-mix(in srgb, var(--dsw-alias-state-warn-primary) 55%, transparent);
   color: var(--dsw-alias-label-primary);
   border-radius: 2px;
+}
+
+/* The search box's modifier toggles (match case / whole word / regex),
+   grouped at the input's right end — VSCode's "Aa" / "ab" / ".*" cluster. */
+.searchModifiers {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.searchModifierButton {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font: var(--dsw-font-xxxs-strong-11);
+  cursor: pointer;
+}
+
+.searchModifierButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.searchModifierUnderline {
+  text-decoration: underline;
 }
 
 /* ── Editor ────────────────────────────────────────────────────────────── */
@@ -1061,34 +1125,8 @@
   flex-direction: column;
 }
 
-.editorHeader {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--dsw-alias-border-l1);
-}
-
-.editorTitle {
-  flex: 1;
-  min-width: 0;
-  font: var(--dsw-font-xxs-strong-12);
-  color: var(--dsw-alias-label-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.editorStatus {
-  font: var(--dsw-font-xxxs-11);
-  color: var(--dsw-alias-label-tertiary);
-}
-
-.editorStatusError {
-  color: var(--dsw-alias-state-error-primary);
-}
-
+/* Unsaved-changes dot — lives on the TAB now (TabBar.tsx), not a per-editor
+   header bar (removed; Save is Cmd/Ctrl+S only). */
 .dirtyDot {
   width: 7px;
   height: 7px;

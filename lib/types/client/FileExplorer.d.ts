@@ -1,7 +1,8 @@
 /**
  * The file explorer tab: a directory tree over one bookmarked local folder
- * (switchable — the header's folder button lists every bookmark, "+" adds
- * a typed path), clicking a file opens it in the editor tab via
+ * ("+" adds a typed path and makes it the new root, "-" removes it and falls
+ * back to the previous one — see explorer-prefs.ts; there is no separate
+ * folder-switcher UI), clicking a file opens it in the editor tab via
  * `onOpenFile` (wired to `service.openFile` in SplitPane.tsx). Also doubles
  * as a "notes" browser: point a bookmark at wherever you keep notes and
  * browse/open .md files the same way as any other folder.

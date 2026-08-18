@@ -179,6 +179,13 @@ export function TabBar(props: {
             {getTabIcon?.(tab) ?? null}
             {getTabBadge?.(tab) ?? null}
             <span className={css.tabTitle}>{tab.title}</span>
+            {/* Unsaved-changes indicator (editor tabs only — see
+                CodeEditor.tsx's onDirtyChange / service.updateTab meta
+                patch). Lives on the tab itself now instead of a persistent
+                in-pane header bar. */}
+            {(tab.meta as { dirty?: boolean } | undefined)?.dirty === true && (
+              <span className={css.dirtyDot} aria-hidden="true" title={t('editorUnsaved')} />
+            )}
             <button
               type="button"
               className={css.tabClose}

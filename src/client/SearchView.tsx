@@ -12,8 +12,9 @@
  * React + fetch, cheap enough to ship in the main bundle.
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import clsx from 'clsx'
 import { Folder, Search as SearchGlyph } from 'lucide-react'
-import { api, ResttyApiError, type SearchDepsStatus, type SearchFileResult } from './api.ts'
+import { api, ResttyApiError, type SearchDepsStatus, type SearchFileResult, type SearchOptions } from './api.ts'
 import { t } from './locales.ts'
 import css from './sidebar.module.css'
 
@@ -85,6 +86,7 @@ function FileGroup(props: { result: SearchFileResult; onOpenFileAtLine: (path: s
 export function SearchView(props: SearchViewProps): ReactNode {
   const { cwd, onOpenFileAtLine } = props
   const [query, setQuery] = useState('')
+  const [options, setOptions] = useState<Required<SearchOptions>>({ matchCase: false, wholeWord: false, useRegex: false })
   const [state, setState] = useState<QueryState>({ status: 'idle' })
   const abortRef = useRef<AbortController | null>(null)
 
@@ -99,7 +101,7 @@ export function SearchView(props: SearchViewProps): ReactNode {
     const controller = new AbortController()
     abortRef.current = controller
     const timer = window.setTimeout(() => {
-      api.searchGrep(cwd ?? '.', trimmed, controller.signal).then((result) => {
+      api.searchGrep(cwd ?? '.', trimmed, options, controller.signal).then((result) => {
         if (controller.signal.aborted) return
         setState({ status: 'ready', files: result.files, truncated: result.truncated })
       }).catch((error: unknown) => {
@@ -114,7 +116,8 @@ export function SearchView(props: SearchViewProps): ReactNode {
       })
     }, DEBOUNCE_MS)
     return () => { window.clearTimeout(timer) }
-  }, [query, cwd])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, cwd, options.matchCase, options.wholeWord, options.useRegex])
 
   return (
     <div className={css.explorer}>
@@ -128,6 +131,38 @@ export function SearchView(props: SearchViewProps): ReactNode {
           onChange={(event) => { setQuery(event.target.value) }}
           autoFocus
         />
+        <div className={css.searchModifiers}>
+          <button
+            type="button"
+            className={clsx(css.searchModifierButton, options.matchCase && css.explorerPillActive)}
+            title={t('searchMatchCase')}
+            aria-label={t('searchMatchCase')}
+            aria-pressed={options.matchCase}
+            onClick={() => { setOptions(o => ({ ...o, matchCase: !o.matchCase })) }}
+          >
+            Aa
+          </button>
+          <button
+            type="button"
+            className={clsx(css.searchModifierButton, options.wholeWord && css.explorerPillActive)}
+            title={t('searchWholeWord')}
+            aria-label={t('searchWholeWord')}
+            aria-pressed={options.wholeWord}
+            onClick={() => { setOptions(o => ({ ...o, wholeWord: !o.wholeWord })) }}
+          >
+            <span className={css.searchModifierUnderline}>ab</span>
+          </button>
+          <button
+            type="button"
+            className={clsx(css.searchModifierButton, options.useRegex && css.explorerPillActive)}
+            title={t('searchUseRegex')}
+            aria-label={t('searchUseRegex')}
+            aria-pressed={options.useRegex}
+            onClick={() => { setOptions(o => ({ ...o, useRegex: !o.useRegex })) }}
+          >
+            .*
+          </button>
+        </div>
       </div>
       <div className={css.explorerBody}>
         {state.status === 'idle' && <div className={css.explorerEmpty}>{t('searchNoQuery')}</div>}

@@ -47,10 +47,43 @@ describe('search-api', () => {
     expect(result).toEqual({ files: [], truncated: false })
   })
 
-  it('rejects with a bad-request ResttyError on an invalid regex', async () => {
-    await expect(searchGrep(dir, '(unclosed')).rejects.toMatchObject({
+  it('treats the query as a literal string by default (no regex error on unbalanced parens)', async () => {
+    // Default is literal-string search (rg -F, matching VSCode's default),
+    // so an unbalanced paren is just a literal substring, not a bad regex.
+    const result = await searchGrep(dir, '(unclosed')
+    expect(result).toEqual({ files: [], truncated: false })
+  })
+
+  it('rejects with a bad-request ResttyError on an invalid regex when useRegex is on', async () => {
+    await expect(searchGrep(dir, '(unclosed', { useRegex: true })).rejects.toMatchObject({
       code: 'bad-request',
     })
+  })
+
+  it('matchCase off (default) is case-insensitive', async () => {
+    const result = await searchGrep(dir, 'NEEDLE')
+    expect(result.files).toHaveLength(1)
+    expect(result.files[0]!.matches).toHaveLength(2)
+  })
+
+  it('matchCase on is case-sensitive', async () => {
+    const result = await searchGrep(dir, 'NEEDLE', { matchCase: true })
+    expect(result).toEqual({ files: [], truncated: false })
+  })
+
+  it('wholeWord only matches the full word', async () => {
+    // "needle" appears as a whole word once (line 2) and as part of
+    // "another needle" once (line 3, still a whole word) — but NOT as part
+    // of a larger token. Assert against "eedl" which never stands alone.
+    const whole = await searchGrep(dir, 'eedl', { wholeWord: true })
+    expect(whole).toEqual({ files: [], truncated: false })
+    const partial = await searchGrep(dir, 'eedl')
+    expect(partial.files).toHaveLength(1)
+  })
+
+  it('useRegex on treats the query as a ripgrep regex', async () => {
+    const result = await searchGrep(dir, 'needle|nothing', { useRegex: true })
+    expect(result.files).toHaveLength(2)
   })
 
   it('throws search-deps-missing when no rg candidate resolves', async () => {

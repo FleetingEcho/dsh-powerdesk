@@ -112,6 +112,10 @@ export interface TabComponentProps {
     onOpenFile?: (path: string) => void;
     /** Open a file and scroll/select `line` (Search tab result clicks). */
     onOpenFileAtLine?: (path: string, line: number) => void;
+    /** Report this tab's unsaved-changes state, so the TAB ITSELF (not a
+     *  per-editor header bar) can show the indicator — see CodeEditor.tsx /
+     *  TabBar.tsx's `tab.meta.dirty` dot. */
+    onDirtyChange?: (dirty: boolean) => void;
     onOpenDiff?: (tab: SidebarTab) => void;
     onSubagentJump?: (childSessionId: string) => void;
 }
