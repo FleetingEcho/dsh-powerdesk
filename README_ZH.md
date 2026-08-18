@@ -141,7 +141,7 @@ dsh plugin --profile web add "dsh-powerdesk@link:$PWD"
 
 「设置 → Powerdesk」为每种标签类型显示一张带启用开关的卡片 —— 关闭某标签类型会把它从每个面板的 `+` 菜单隐藏，并使 `openTab` 对它空操作（持久化在 `localStorage`）。点击卡片主体即打开该功能面。
 
-![设置 → Powerdesk：每种标签类型一张卡片，各带启用开关](static/images/cutomized-cards.png)
+![设置 → Powerdesk：每种标签类型一张卡片，各带启用开关](static/images/customized-cards.png)
 
 卡片下方是一个**外观**区块，包含终端的字体家族 / 字重 / 大小，以及两个主题选择器 —— **终端主题**与**Codemirror 主题** —— 各带「系统默认」选项以跟随应用明暗模式。任一更改都会即时应用到已打开的终端 / 编辑器。
 

@@ -148,7 +148,7 @@ Type a URL in the address bar and press Enter. Back / forward / refresh / open-i
 
 **Settings → Powerdesk** shows a card per tab type with an enable toggle — switching a tab type off hides it from every pane's `+` menu and makes `openTab` a no-op for it (persisted in `localStorage`). Clicking a card's body opens that surface.
 
-![Settings → Powerdesk: one card per tab type, each with an enable toggle](static/images/cutomized-cards.png)
+![Settings → Powerdesk: one card per tab type, each with an enable toggle](static/images/customized-cards.png)
 
 Below the cards, an **Appearance** block holds the terminal font family / weight / size and the two theme selectors — the **Terminal theme** and the **Codemirror theme** — each with a "System default" option that follows the app's light/dark scheme. Changing either re-applies live to any open terminal / editor.
 
