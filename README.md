@@ -8,9 +8,9 @@ explorer**, a **notes** app, a **code editor**, and a sandboxed **browser** —
 all self-contained, in a dockable right panel *and* a dockable bottom panel
 (VSCode-style dual workbench, with drag-to-split and drag-between-panels).
 
-- **Terminal** — rendered with [restty](https://github.com/restty-dev/restty)
+- **Terminal** — rendered with [restty](https://github.com/wiedymi/restty)
   (WebGPU/WebGL2 + WASM VT, Ghostty-lineage) and backed by a **Rust PTY**
-  ([napi-rs](https://napi.rs) + [portable-pty](https://github.com/wez/portable-pty))
+  ([napi-rs](https://napi.rs) + [portable-pty](https://docs.rs/portable-pty/latest/portable_pty/))
   instead of the C++ `node-pty` the stock terminal uses.
 - **Explorer** — a directory tree over any local folder you bookmark (picked
   via a built-in folder-browser modal, not a text field). Click a file to open
@@ -36,7 +36,7 @@ spans the full window width including under the right panel).
 
 ## Why Powerdesk
 
-1. **A genuinely fast terminal** — [restty](https://github.com/restty-dev/restty) (WebGPU/WebGL2 + a WASM VT, Ghostty-lineage) over a **Rust PTY** ([napi-rs](https://napi.rs) + [portable-pty](https://github.com/wez/portable-pty)), not the C++ `node-pty` the stock terminal uses — so terminal I/O is substantially faster and lighter.
+1. **A genuinely fast terminal** — [restty](https://github.com/wiedymi/restty) (WebGPU/WebGL2 + a WASM VT, Ghostty-lineage) over a **Rust PTY** ([napi-rs](https://napi.rs) + [portable-pty](https://docs.rs/portable-pty/latest/portable_pty/)), not the C++ `node-pty` the stock terminal uses — so terminal I/O is substantially faster and lighter.
 2. **A full IDE without leaving the chat** — ripgrep content search, a CodeMirror 6 editor, a file explorer, notes, and a sandboxed browser, all as tabs in dockable right + bottom panels. Never context-switch out of the DSH page.
 3. **Two-panel VSCode-style workbench** — drag any tab to a pane edge to split it, or between the right and bottom panels to move it entirely; two split trees sharing one drag-and-drop system.
 4. **Zero-build install** — `lib/` and the macOS / Linux-x64 Rust PTY binaries are committed, so `dsh plugin add` just copies files: no build step, no Rust toolchain, no `allowBuilds` entry.

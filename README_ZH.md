@@ -7,9 +7,9 @@
 一个沙箱化的**浏览器** —— 全部自包含，置于一个可停靠的右侧面板 *和* 一个可停靠的
 底部面板中（VSCode 风格的双工作台，支持拖拽分屏与跨面板拖拽）。
 
-- **终端** —— 用 [restty](https://github.com/restty-dev/restty) 渲染
+- **终端** —— 用 [restty](https://github.com/wiedymi/restty) 渲染
   （WebGPU/WebGL2 + WASM VT，Ghostty 血统），后端是 **Rust PTY**
-  （[napi-rs](https://napi.rs) + [portable-pty](https://github.com/wez/portable-pty)），
+  （[napi-rs](https://napi.rs) + [portable-pty](https://docs.rs/portable-pty/latest/portable_pty/)），
   而非原生终端使用的 C++ `node-pty`。
 - **文件浏览器** —— 在任意本地文件夹（通过内置文件夹浏览弹窗选取，而非文本输入框）之上
   呈现的目录树。点击文件即在编辑器中打开；每个文件行都有快捷的「复制相对路径」（便于
@@ -29,7 +29,7 @@
 
 ## 为何选择 Powerdesk
 
-1. **真正快的终端** —— [restty](https://github.com/restty-dev/restty)（WebGPU/WebGL2 + WASM VT，Ghostty 血统）渲染于 **Rust PTY**（[napi-rs](https://napi.rs) + [portable-pty](https://github.com/wez/portable-pty)）之上，而非原生终端使用的 C++ `node-pty` —— 终端 I/O 显著更快、更轻量。
+1. **真正快的终端** —— [restty](https://github.com/wiedymi/restty)（WebGPU/WebGL2 + WASM VT，Ghostty 血统）渲染于 **Rust PTY**（[napi-rs](https://napi.rs) + [portable-pty](https://docs.rs/portable-pty/latest/portable_pty/)）之上，而非原生终端使用的 C++ `node-pty` —— 终端 I/O 显著更快、更轻量。
 2. **不离开聊天的完整 IDE** —— ripgrep 内容搜索、CodeMirror 6 编辑器、文件浏览器、笔记、沙箱浏览器，全部作为标签页置于可停靠的右面板 + 底面板中。无需上下文切换离开 DSH 页面。
 3. **双面板 VSCode 风格工作台** —— 把任意标签页拖到面板边缘即可分屏，或在右/底面板之间整体迁移；两棵分屏树共享同一套拖拽系统。
 4. **零构建安装** —— `lib/` 与 macOS / Linux-x64 的 Rust PTY 二进制均已提交，`dsh plugin add` 只是拷贝文件：无构建步骤、无需 Rust 工具链、无需 `allowBuilds` 条目。
