@@ -59,6 +59,15 @@ importers:
       '@schedule-x/current-time':
         specifier: ^4.6.1
         version: 4.6.1
+      '@schedule-x/drag-and-drop':
+        specifier: ^3.7.3
+        version: 3.7.3
+      '@schedule-x/event-modal':
+        specifier: ^4.6.1
+        version: 4.6.1(@preact/signals@2.11.1(preact@10.29.8))(preact@10.29.8)
+      '@schedule-x/resize':
+        specifier: ^3.7.3
+        version: 3.7.3
       '@schedule-x/theme-default':
         specifier: ^4.6.1
         version: 4.6.1
@@ -1215,6 +1224,18 @@ packages:
 
   '@schedule-x/current-time@4.6.1':
     resolution: {integrity: sha512-mfjqWcoKntG65W+kjV9wl2Dr/oRjGoQfiEMivLUvYizuihwPqHjhhJTMaT3/cyalu/JlasOrOrpQ6cj6N399Vw==}
+
+  '@schedule-x/drag-and-drop@3.7.3':
+    resolution: {integrity: sha512-nHwZKzdIKWNTdT5BEXy4vLlHOmOH3C3M744QUIU0EOXPAFZQR1bBTviGs2NhmvaLiGstnVx2/TZtdhocy60hgg==}
+
+  '@schedule-x/event-modal@4.6.1':
+    resolution: {integrity: sha512-YWRAjNwi/W0+GPwb6gVif0gQpuxBQ08M8mqwGqBwf9HRwXUZyE36CD9GMF7xtkFvxVEolmq3mG23Dk3IUWR/9Q==}
+    peerDependencies:
+      '@preact/signals': ^2.0.2
+      preact: ^10.19.2
+
+  '@schedule-x/resize@3.7.3':
+    resolution: {integrity: sha512-rdzsBx6Dw7d7jwYb8IQzphTwxAofegn1caVaWEdv9WTj8RkLzDILgpM2Oe6KHtpgjMcUWs6aKBaPirJh0T9VZg==}
 
   '@schedule-x/theme-default@4.6.1':
     resolution: {integrity: sha512-kjdMDRc3y+45NpNqHDhd0flfepyCbBKooYiDPI1eRC+1medBYJLQPBtR8mcnVL63MzN6NqwEuWY+YJPdIj+gUA==}
@@ -3542,6 +3563,15 @@ snapshots:
       temporal-polyfill: 0.3.0
 
   '@schedule-x/current-time@4.6.1': {}
+
+  '@schedule-x/drag-and-drop@3.7.3': {}
+
+  '@schedule-x/event-modal@4.6.1(@preact/signals@2.11.1(preact@10.29.8))(preact@10.29.8)':
+    dependencies:
+      '@preact/signals': 2.11.1(preact@10.29.8)
+      preact: 10.29.8
+
+  '@schedule-x/resize@3.7.3': {}
 
   '@schedule-x/theme-default@4.6.1': {}
 

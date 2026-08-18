@@ -32,10 +32,27 @@
  * The calendar is configured with `timezone: Temporal.Now.timeZoneId()` so
  * it renders in the user's local time, matching the naive strings we store.
  *
- * CRUD is wired through the calendar's `onEventUpdate` callback (drag-resize →
- * DB update) plus a "New event" affordance and `onEventClick` → confirm-delete;
- * each mutation syncs to SQLite via the API, with the DB as source of truth
- * (a failed mutation refetches and reconciles).
+ * Global identity: `@schedule-x/calendar` lists `temporal-polyfill` as a
+ * peer dependency but its bundled core never imports it — `validateEvents`
+ * does a bare, unimported `instanceof Temporal.ZonedDateTime` check, i.e. it
+ * expects `Temporal` as a GLOBAL, not a module import. Recent Chrome (135+)
+ * now ships `Temporal` natively on `globalThis`. If we build events with the
+ * `temporal-polyfill` package's own class while schedule-x's bare reference
+ * resolves to the native global class, `instanceof` fails on two unrelated
+ * constructors even though the value is a real Temporal instant — this is
+ * exactly the "[Schedule-X error]: Event start time needs to be a
+ * Temporal.ZonedDateTime or Temporal.PlainDate" crash. Fix: use whichever
+ * `Temporal` already lives on `globalThis` (installing the polyfill there
+ * only if no native one exists) so our instances and schedule-x's
+ * `instanceof` checks share one identity.
+ *
+ * CRUD is wired through the calendar's `onEventUpdate` callback (drag-move
+ * via `@schedule-x/drag-and-drop` and drag-resize via `@schedule-x/resize`
+ * both funnel into this one callback → DB update) plus a "New event"
+ * toolbar affordance and double-clicking an empty grid slot (both →
+ * `createEventAt`, prompt for a title, DB create) and `onEventClick` →
+ * confirm-delete; each mutation syncs to SQLite via the API, with the DB as
+ * source of truth (a failed mutation refetches and reconciles).
  */
 import { createElement, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
@@ -46,7 +63,9 @@ import {
   type CalendarApp,
   type CalendarEventExternal,
 } from '@schedule-x/calendar'
-import { Temporal } from 'temporal-polyfill'
+import { createDragAndDropPlugin } from '@schedule-x/drag-and-drop'
+import { createResizePlugin } from '@schedule-x/resize'
+import { Temporal as PolyfillTemporal } from 'temporal-polyfill'
 import '@schedule-x/theme-default/dist/index.css'
 import { api, ResttyApiError, type CalendarDepsStatus, type CalendarEvent } from './api.ts'
 import { isDarkScheme, subscribeColorScheme } from './theme.ts'
@@ -66,6 +85,16 @@ type ViewState =
   | { status: 'error'; message: string }
   | { status: 'ready' }
 
+/** The `Temporal` schedule-x's bundled core actually checks `instanceof`
+ *  against (see the "Global identity" note above): native when the browser
+ *  has one, else the polyfill installed onto `globalThis` so both sides
+ *  agree on a single class. */
+const globalTemporal = globalThis as { Temporal?: typeof PolyfillTemporal }
+if (globalTemporal.Temporal === undefined) {
+  globalTemporal.Temporal = PolyfillTemporal
+}
+const Temporal = globalTemporal.Temporal
+
 /** The user's local IANA timezone (e.g. 'America/Vancouver'); resolved once. */
 const LOCAL_TIMEZONE = Temporal.Now.timeZoneId()
 
@@ -75,7 +104,7 @@ const LOCAL_TIMEZONE = Temporal.Now.timeZoneId()
  * becomes a `Temporal.ZonedDateTime` in the local timezone; a date-only string
  * ('2026-08-18') becomes a `Temporal.PlainDate` for an all-day event.
  */
-function toTemporal(iso: string): Temporal.ZonedDateTime | Temporal.PlainDate {
+function toTemporal(iso: string): PolyfillTemporal.ZonedDateTime | PolyfillTemporal.PlainDate {
   if (iso.includes('T')) {
     return Temporal.ZonedDateTime.from(`${iso}[${LOCAL_TIMEZONE}]`)
   }
@@ -87,7 +116,7 @@ function toTemporal(iso: string): Temporal.ZonedDateTime | Temporal.PlainDate {
  * SQLite store. `Temporal.ZonedDateTime` → local wall-clock datetime
  * (`.toPlainDateTime().toString()`); `Temporal.PlainDate` → date string.
  */
-function toIso(value: Temporal.ZonedDateTime | Temporal.PlainDate): string {
+function toIso(value: PolyfillTemporal.ZonedDateTime | PolyfillTemporal.PlainDate): string {
   if (value instanceof Temporal.ZonedDateTime) {
     return value.toPlainDateTime().toString()
   }
@@ -174,13 +203,18 @@ export function CalendarView(props: CalendarViewProps): ReactNode {
       }) as unknown as CalendarEventExternal)
       // 3. Create the schedule-x calendar (vanilla, no React adapter) in the
       // user's local timezone so rendered times match the stored naive strings.
+      // The drag-and-drop + resize plugins are what make events draggable at
+      // all (schedule-x gates its draggable attribute and resize grabbers on
+      // `config.plugins.dragAndDrop` / `.resize` being present — see
+      // CalendarView.tsx's module doc); both funnel through the same
+      // `onEventUpdate` callback as any other move/resize.
       const calendar = createCalendar({
         views: [viewMonthGrid, viewWeek, viewDay],
         events: sxEvents,
         isDark: isDarkScheme(),
         timezone: LOCAL_TIMEZONE,
         callbacks: {
-          // Drag-resize / drag-move: schedule-x already updated its internal
+          // Drag-move / drag-resize: schedule-x already updated its internal
           // state; we convert the Temporal values back to naive ISO strings
           // and persist to SQLite.
           onEventUpdate: (event: CalendarEventExternal) => {
@@ -188,8 +222,8 @@ export function CalendarView(props: CalendarViewProps): ReactNode {
             api.calendarUpdate({
               id,
               ...(event.title !== undefined ? { title: event.title } : {}),
-              start: toIso(event.start as Temporal.ZonedDateTime | Temporal.PlainDate),
-              end: toIso(event.end as Temporal.ZonedDateTime | Temporal.PlainDate),
+              start: toIso(event.start as PolyfillTemporal.ZonedDateTime | PolyfillTemporal.PlainDate),
+              end: toIso(event.end as PolyfillTemporal.ZonedDateTime | PolyfillTemporal.PlainDate),
               ...(event.location !== undefined ? { location: event.location } : {}),
               ...(event.description !== undefined ? { description: event.description } : {}),
               ...(event.calendarId !== undefined ? { calendarId: event.calendarId } : {}),
@@ -205,8 +239,15 @@ export function CalendarView(props: CalendarViewProps): ReactNode {
               }).catch(() => { reconcile(calendarRef.current) })
             }
           },
+          // Double-click an empty grid slot → quick-create a 1-hour event
+          // starting exactly there (schedule-x has no built-in "drag an empty
+          // slot to sketch a new event" gesture in this version; this is the
+          // closest first-class hook it exposes for point-and-create).
+          onDoubleClickDateTime: (dateTime: PolyfillTemporal.ZonedDateTime) => {
+            createEventAt(dateTime.toPlainDateTime().toString())
+          },
         },
-      })
+      }, [createDragAndDropPlugin(), createResizePlugin()])
       if (cancelled) {
         calendar.destroy()
         return
@@ -249,16 +290,17 @@ export function CalendarView(props: CalendarViewProps): ReactNode {
     }
   }, [state.status])
 
-  /** Create a new 1-hour event (title via prompt; drag to move/resize). */
-  function createEvent(): void {
+  /** Create a new 1-hour event starting at `startIso` (title via prompt).
+   *  Shared by the toolbar "New event" button (starts next hour) and
+   *  double-clicking an empty grid slot (starts exactly there). */
+  function createEventAt(startIso: string): void {
     const title = window.prompt(t('calendarNewEventPrompt'), t('calendarUntitledEvent'))
     if (title === null) return
-    const start = nextHourIso()
-    const end = plusOneHour(start)
+    const end = plusOneHour(startIso)
     const event: CalendarEvent = {
       id: crypto.randomUUID(),
       title: title === '' ? t('calendarUntitledEvent') : title,
-      start,
+      start: startIso,
       end,
     }
     api.calendarCreate(event).then(() => {
@@ -292,7 +334,7 @@ export function CalendarView(props: CalendarViewProps): ReactNode {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <div style={{ padding: '6px 8px', flex: '0 0 auto' }}>
-        <button type="button" className={css.terminalRetry} onClick={createEvent}>
+        <button type="button" className={css.terminalRetry} onClick={() => { createEventAt(nextHourIso()) }}>
           {t('calendarNewEvent')}
         </button>
       </div>

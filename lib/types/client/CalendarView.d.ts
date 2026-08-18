@@ -32,10 +32,27 @@
  * The calendar is configured with `timezone: Temporal.Now.timeZoneId()` so
  * it renders in the user's local time, matching the naive strings we store.
  *
- * CRUD is wired through the calendar's `onEventUpdate` callback (drag-resize →
- * DB update) plus a "New event" affordance and `onEventClick` → confirm-delete;
- * each mutation syncs to SQLite via the API, with the DB as source of truth
- * (a failed mutation refetches and reconciles).
+ * Global identity: `@schedule-x/calendar` lists `temporal-polyfill` as a
+ * peer dependency but its bundled core never imports it — `validateEvents`
+ * does a bare, unimported `instanceof Temporal.ZonedDateTime` check, i.e. it
+ * expects `Temporal` as a GLOBAL, not a module import. Recent Chrome (135+)
+ * now ships `Temporal` natively on `globalThis`. If we build events with the
+ * `temporal-polyfill` package's own class while schedule-x's bare reference
+ * resolves to the native global class, `instanceof` fails on two unrelated
+ * constructors even though the value is a real Temporal instant — this is
+ * exactly the "[Schedule-X error]: Event start time needs to be a
+ * Temporal.ZonedDateTime or Temporal.PlainDate" crash. Fix: use whichever
+ * `Temporal` already lives on `globalThis` (installing the polyfill there
+ * only if no native one exists) so our instances and schedule-x's
+ * `instanceof` checks share one identity.
+ *
+ * CRUD is wired through the calendar's `onEventUpdate` callback (drag-move
+ * via `@schedule-x/drag-and-drop` and drag-resize via `@schedule-x/resize`
+ * both funnel into this one callback → DB update) plus a "New event"
+ * toolbar affordance and double-clicking an empty grid slot (both →
+ * `createEventAt`, prompt for a title, DB create) and `onEventClick` →
+ * confirm-delete; each mutation syncs to SQLite via the API, with the DB as
+ * source of truth (a failed mutation refetches and reconciles).
  */
 import { type ReactNode } from 'react';
 import '@schedule-x/theme-default/dist/index.css';
