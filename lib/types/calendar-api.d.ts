@@ -9,6 +9,10 @@ export interface CalendarEvent {
     location?: string;
     description?: string;
     calendarId?: string;
+    /** A CSS hex color (e.g. '#e5484d') for the event's background/border. */
+    color?: string;
+    /** A single free-text label/tag shown alongside the event title. */
+    tag?: string;
 }
 /** @internal Tests only — redirect the DB to a temp path and drop the handle. */
 export declare function __setCalendarDbPathForTests(path: string | null): void;

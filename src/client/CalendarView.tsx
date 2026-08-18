@@ -39,12 +39,20 @@
  * `info.revert()` on failure so the UI snaps back immediately rather than
  * silently drifting from the DB. `selectable` + `select` is genuine
  * drag-to-create: drag across empty grid space, release, open
- * CalendarEventModal seeded with the dragged range (a bare `window.prompt`
- * only asked for a title and gave no way to add a location/description or
- * fine-tune the times after a rough drag). `eventClick` → confirm-delete,
- * same as before. No standalone "new event" affordance — drag-to-create on
- * the grid is the only entry point, since the modal needs a start/end to
- * seed itself with and a button click has no natural one to anchor to.
+ * CalendarEventModal in 'create' mode seeded with the dragged range.
+ * `eventClick` opens the SAME modal in 'edit' mode, seeded from the clicked
+ * event's current fields (location/description/tag live only in
+ * `extendedProps` — FullCalendar has no first-class fields for them —
+ * color lives in `backgroundColor`); the modal's own Delete button (behind
+ * an inline confirm step, not a native `window.confirm`) is what removes an
+ * event now. No standalone "new event" affordance — drag-to-create on the
+ * grid is the only creation entry point, since the modal needs a start/end
+ * to seed itself with and a button click has no natural one to anchor to.
+ *
+ * Color contrast: `textColorFor()` derives readable event text (near-black
+ * or near-white) from the chosen background via a standard luminance
+ * formula, rather than storing a second "text color" field the user would
+ * have to also pick.
  *
  * Theming: FullCalendar themes purely through CSS custom properties on its
  * own `.fc` root class (see sidebar.module.css's Calendar section) — our
@@ -56,7 +64,7 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import FullCalendarImport from '@fullcalendar/react'
-import type { CalendarApi, DateSelectArg, EventClickArg, EventDropArg, EventInput } from '@fullcalendar/core'
+import type { CalendarApi, DateSelectArg, EventClickArg, EventContentArg, EventDropArg, EventInput } from '@fullcalendar/core'
 import dayGridPluginImport from '@fullcalendar/daygrid'
 import timeGridPluginImport from '@fullcalendar/timegrid'
 import interactionPluginImport, { type EventResizeDoneArg } from '@fullcalendar/interaction'
@@ -102,6 +110,13 @@ type ViewState =
   | { status: 'error'; message: string }
   | { status: 'ready' }
 
+/** The modal's current job: creating a new event from a drag selection, or
+ *  editing (and possibly deleting) the event the user clicked. */
+type ModalState =
+  | { mode: 'create'; start: Date; end: Date }
+  | { mode: 'edit'; id: string; values: CalendarEventDraft }
+  | null
+
 /** Pad a number to 2 digits (for building local-time ISO strings). */
 function pad2(n: number): string {
   return n < 10 ? `0${n}` : String(n)
@@ -113,14 +128,51 @@ function dateToNaiveIso(d: Date): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
 }
 
-/** Map a host `CalendarEvent` to the shape FullCalendar's `events` prop wants. */
+/** Readable event text (near-black or near-white) for a given hex
+ *  background, via the standard relative-luminance formula — one fewer
+ *  thing for the user to pick, and always legible regardless of theme. */
+function textColorFor(bgHex: string): string {
+  const hex = bgHex.replace('#', '')
+  const r = Number.parseInt(hex.slice(0, 2), 16)
+  const g = Number.parseInt(hex.slice(2, 4), 16)
+  const b = Number.parseInt(hex.slice(4, 6), 16)
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  return luminance > 0.6 ? '#1c1b1f' : '#ffffff'
+}
+
+/** Map a host `CalendarEvent` to the shape FullCalendar's `events` prop
+ *  wants. Location/description/tag have no first-class FullCalendar field,
+ *  so they ride in `extendedProps` — read back out in `handleEventClick`
+ *  and `renderEventContent` below. */
 function toEventInput(e: CalendarEvent): EventInput {
   return {
     id: e.id,
     title: e.title ?? t('calendarUntitledEvent'),
     start: e.start,
     end: e.end,
+    ...(e.color !== undefined && e.color !== ''
+      ? { backgroundColor: e.color, borderColor: e.color, textColor: textColorFor(e.color) }
+      : {}),
+    extendedProps: {
+      location: e.location ?? '',
+      description: e.description ?? '',
+      tag: e.tag ?? '',
+    },
   }
+}
+
+/** A small tag badge above the title/time, when the event has one. Kept
+ *  minimal (no custom time/title markup) so FullCalendar's own layout CSS
+ *  for the rest of the event box still applies. */
+function renderEventContent(arg: EventContentArg): ReactNode {
+  const tag = arg.event.extendedProps.tag as string | undefined
+  return (
+    <div className={css.calendarEventContent}>
+      {tag !== undefined && tag !== '' && <span className={css.calendarEventTagBadge}>{tag}</span>}
+      {arg.timeText !== '' && <span className={css.calendarEventTimeText}>{arg.timeText}</span>}
+      <span className={css.calendarEventTitleText}>{arg.event.title}</span>
+    </div>
+  )
 }
 
 /** A deps-missing repair banner (mirrors SearchView's SearchDepsBanner). */
@@ -143,7 +195,7 @@ export function CalendarView(props: CalendarViewProps): ReactNode {
   const calendarApiRef = useRef<CalendarApi | null>(null)
   const [state, setState] = useState<ViewState>({ status: 'loading' })
   const [events, setEvents] = useState<EventInput[]>([])
-  const [draftRange, setDraftRange] = useState<{ start: Date; end: Date } | null>(null)
+  const [modal, setModal] = useState<ModalState>(null)
 
   // Load deps + events once the tab is first visible.
   useEffect(() => {
@@ -177,8 +229,9 @@ export function CalendarView(props: CalendarViewProps): ReactNode {
     return () => { cancelled = true }
   }, [visible, state.status])
 
-  /** Refetch all events from the DB (DB is the source of truth; used to
-   *  reconcile the local view after a failed mutation). */
+  /** Refetch all events from the DB (DB is the source of truth; used after
+   *  a failed mutation, and after edits/deletes rather than hand-patching
+   *  local state — simpler and just as fast against a local SQLite file). */
   function reconcile(): void {
     api.calendarList().then((result) => {
       setEvents(result.events.map(toEventInput))
@@ -189,31 +242,77 @@ export function CalendarView(props: CalendarViewProps): ReactNode {
   // own selection highlight stays visible underneath while the form is open
   // (unselect() only fires once the modal actually closes, below).
   function handleSelect(info: DateSelectArg): void {
-    setDraftRange({ start: info.start, end: info.end })
+    setModal({ mode: 'create', start: info.start, end: info.end })
   }
 
-  function closeDraftModal(): void {
-    setDraftRange(null)
+  // Click an existing event → open the SAME modal in 'edit' mode, seeded
+  // from its current fields (extendedProps for location/description/tag,
+  // backgroundColor for color — see toEventInput's comment on why those
+  // live there instead of first-class FullCalendar fields).
+  function handleEventClick(info: EventClickArg): void {
+    const { event } = info
+    if (event.start === null || event.end === null) return
+    setModal({
+      mode: 'edit',
+      id: event.id,
+      values: {
+        title: event.title,
+        start: event.start,
+        end: event.end,
+        location: (event.extendedProps.location as string | undefined) ?? '',
+        description: (event.extendedProps.description as string | undefined) ?? '',
+        color: event.backgroundColor,
+        tag: (event.extendedProps.tag as string | undefined) ?? '',
+      },
+    })
+  }
+
+  function closeModal(): void {
+    setModal(null)
     calendarApiRef.current?.unselect()
   }
 
-  function handleCreate(draft: CalendarEventDraft): void {
-    const event: CalendarEvent = {
-      id: crypto.randomUUID(),
-      title: draft.title,
-      start: dateToNaiveIso(draft.start),
-      end: dateToNaiveIso(draft.end),
-      ...(draft.location !== '' ? { location: draft.location } : {}),
-      ...(draft.description !== '' ? { description: draft.description } : {}),
-    }
-    api.calendarCreate(event).then(() => {
-      setEvents((prev) => [...prev, toEventInput(event)])
-    }).catch((error: unknown) => {
-      if (error instanceof ResttyApiError) {
-        setState({ status: 'error', message: error.message })
+  function handleSubmit(draft: CalendarEventDraft): void {
+    if (modal?.mode === 'edit') {
+      api.calendarUpdate({
+        id: modal.id,
+        title: draft.title,
+        start: dateToNaiveIso(draft.start),
+        end: dateToNaiveIso(draft.end),
+        location: draft.location,
+        description: draft.description,
+        color: draft.color,
+        tag: draft.tag,
+      }).then(() => { reconcile() }).catch(() => { reconcile() })
+    } else if (modal?.mode === 'create') {
+      const event: CalendarEvent = {
+        id: crypto.randomUUID(),
+        title: draft.title,
+        start: dateToNaiveIso(draft.start),
+        end: dateToNaiveIso(draft.end),
+        ...(draft.location !== '' ? { location: draft.location } : {}),
+        ...(draft.description !== '' ? { description: draft.description } : {}),
+        ...(draft.color !== '' ? { color: draft.color } : {}),
+        ...(draft.tag !== '' ? { tag: draft.tag } : {}),
       }
-    })
-    closeDraftModal()
+      api.calendarCreate(event).then(() => {
+        setEvents((prev) => [...prev, toEventInput(event)])
+      }).catch((error: unknown) => {
+        if (error instanceof ResttyApiError) {
+          setState({ status: 'error', message: error.message })
+        }
+      })
+    }
+    closeModal()
+  }
+
+  function handleDelete(): void {
+    if (modal?.mode !== 'edit') return
+    const id = modal.id
+    api.calendarDelete(id).then((result) => {
+      if (result.changes > 0) setEvents((prev) => prev.filter((e) => e.id !== id))
+    }).catch(() => { reconcile() })
+    closeModal()
   }
 
   function handleEventDrop(info: EventDropArg): void {
@@ -240,16 +339,6 @@ export function CalendarView(props: CalendarViewProps): ReactNode {
       info.revert()
       reconcile()
     })
-  }
-
-  function handleEventClick(info: EventClickArg): void {
-    const id = info.event.id
-    const label = info.event.title === '' ? t('calendarUntitledEvent') : info.event.title
-    if (window.confirm(t('calendarDeleteConfirm', { title: label }))) {
-      api.calendarDelete(id).then((result) => {
-        if (result.changes > 0) info.event.remove()
-      }).catch(() => { reconcile() })
-    }
   }
 
   if (state.status === 'loading') {
@@ -282,6 +371,7 @@ export function CalendarView(props: CalendarViewProps): ReactNode {
           selectable
           selectMirror
           events={events}
+          eventContent={renderEventContent}
           eventClick={handleEventClick}
           eventDrop={handleEventDrop}
           eventResize={handleEventResize}
@@ -289,11 +379,12 @@ export function CalendarView(props: CalendarViewProps): ReactNode {
         />
       </div>
       <CalendarEventModal
-        open={draftRange !== null}
-        initialStart={draftRange?.start ?? null}
-        initialEnd={draftRange?.end ?? null}
-        onCreate={handleCreate}
-        onClose={closeDraftModal}
+        open={modal !== null}
+        mode={modal?.mode ?? 'create'}
+        initialValues={modal === null ? null : modal.mode === 'create' ? { start: modal.start, end: modal.end } : modal.values}
+        onSubmit={handleSubmit}
+        onDelete={modal?.mode === 'edit' ? handleDelete : undefined}
+        onClose={closeModal}
       />
     </div>
   )

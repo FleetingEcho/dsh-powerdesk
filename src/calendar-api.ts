@@ -42,6 +42,21 @@ CREATE TABLE IF NOT EXISTS calendar_events (
 CREATE INDEX IF NOT EXISTS idx_calendar_events_start ON calendar_events (start);
 `
 
+/** Columns added after the initial release. `CREATE TABLE IF NOT EXISTS`
+ *  only handles a table that doesn't exist yet — an existing DB from before
+ *  color/tag support needs each column added on top, hence the explicit
+ *  `PRAGMA table_info` + `ALTER TABLE ADD COLUMN` migration below (SQLite
+ *  has no `ADD COLUMN IF NOT EXISTS`). */
+const ADDED_COLUMNS: Record<string, string> = { color: 'TEXT', tag: 'TEXT' }
+
+/** Add any `ADDED_COLUMNS` missing from an existing (pre-migration) DB file. */
+function migrateSchema(db: RustSqliteDatabase): void {
+  const existing = new Set(db.query<{ name: string }>('PRAGMA table_info(calendar_events)').map((c) => c.name))
+  for (const [name, type] of Object.entries(ADDED_COLUMNS)) {
+    if (!existing.has(name)) db.exec(`ALTER TABLE calendar_events ADD COLUMN ${name} ${type}`)
+  }
+}
+
 /** An event as the client sends / receives it (mirrors schedule-x). */
 export interface CalendarEvent {
   id: string
@@ -53,6 +68,10 @@ export interface CalendarEvent {
   location?: string
   description?: string
   calendarId?: string
+  /** A CSS hex color (e.g. '#e5484d') for the event's background/border. */
+  color?: string
+  /** A single free-text label/tag shown alongside the event title. */
+  tag?: string
 }
 
 /** The raw DB row (snake_case columns) before mapping to {@link CalendarEvent}. */
@@ -64,6 +83,8 @@ interface EventRow {
   location: string | null
   description: string | null
   calendar_id: string | null
+  color: string | null
+  tag: string | null
 }
 
 /** Map a DB row to the client-facing event shape. */
@@ -76,6 +97,8 @@ function rowToEvent(row: EventRow): CalendarEvent {
     ...(row.location !== null ? { location: row.location } : {}),
     ...(row.description !== null ? { description: row.description } : {}),
     ...(row.calendar_id !== null ? { calendarId: row.calendar_id } : {}),
+    ...(row.color !== null ? { color: row.color } : {}),
+    ...(row.tag !== null ? { tag: row.tag } : {}),
   }
 }
 
@@ -110,6 +133,7 @@ function getDb(): RustSqliteDatabase {
   const mod = loadRequiredRustSqlite()
   const db = mod.Database.open(dbPath())
   db.exec(SCHEMA_SQL)
+  migrateSchema(db)
   dbHandle = db
   return db
 }
@@ -129,7 +153,7 @@ function requireEventFields(input: Partial<CalendarEvent> & { id?: unknown }): a
 
 /** List all events, earliest first. */
 export function calendarList(): { events: CalendarEvent[] } {
-  const rows = getDb().query<EventRow>('SELECT id, title, start, end, location, description, calendar_id FROM calendar_events ORDER BY start ASC')
+  const rows = getDb().query<EventRow>('SELECT id, title, start, end, location, description, calendar_id, color, tag FROM calendar_events ORDER BY start ASC')
   return { events: rows.map(rowToEvent) }
 }
 
@@ -137,10 +161,22 @@ export function calendarList(): { events: CalendarEvent[] } {
 export function calendarCreate(input: Partial<CalendarEvent> & { id?: unknown }): { event: CalendarEvent } {
   requireEventFields(input)
   getDb().run(
-    'INSERT INTO calendar_events (id, title, start, end, location, description, calendar_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [input.id, input.title ?? null, input.start, input.end, input.location ?? null, input.description ?? null, input.calendarId ?? null],
+    'INSERT INTO calendar_events (id, title, start, end, location, description, calendar_id, color, tag) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [input.id, input.title ?? null, input.start, input.end, input.location ?? null, input.description ?? null, input.calendarId ?? null, input.color ?? null, input.tag ?? null],
   )
-  return { event: rowToEvent({ id: input.id, title: input.title ?? null, start: input.start, end: input.end, location: input.location ?? null, description: input.description ?? null, calendar_id: input.calendarId ?? null }) }
+  return {
+    event: rowToEvent({
+      id: input.id,
+      title: input.title ?? null,
+      start: input.start,
+      end: input.end,
+      location: input.location ?? null,
+      description: input.description ?? null,
+      calendar_id: input.calendarId ?? null,
+      color: input.color ?? null,
+      tag: input.tag ?? null,
+    }),
+  }
 }
 
 /** Update an event by id. Returns the number of rows changed (0 = not found). */
@@ -149,8 +185,8 @@ export function calendarUpdate(input: Partial<CalendarEvent> & { id?: unknown })
     throw new ResttyError('bad-request', 'calendar event "id" is required for update')
   }
   // Coalesce to the existing row for fields the client didn't send (a
-  // schedule-x drag-resize only sends id/start/end; title etc. must persist).
-  const existing = getDb().query<EventRow>('SELECT id, title, start, end, location, description, calendar_id FROM calendar_events WHERE id = ?', [input.id])[0]
+  // drag-move/resize only sends id/start/end; title etc. must persist).
+  const existing = getDb().query<EventRow>('SELECT id, title, start, end, location, description, calendar_id, color, tag FROM calendar_events WHERE id = ?', [input.id])[0]
   if (existing === undefined) return { changes: 0 }
   const merged: EventRow = {
     id: existing.id,
@@ -160,10 +196,12 @@ export function calendarUpdate(input: Partial<CalendarEvent> & { id?: unknown })
     location: input.location ?? existing.location,
     description: input.description ?? existing.description,
     calendar_id: input.calendarId ?? existing.calendar_id,
+    color: input.color ?? existing.color,
+    tag: input.tag ?? existing.tag,
   }
   const changes = getDb().run(
-    'UPDATE calendar_events SET title = ?, start = ?, end = ?, location = ?, description = ?, calendar_id = ?, updated_at = datetime(\'now\') WHERE id = ?',
-    [merged.title, merged.start, merged.end, merged.location, merged.description, merged.calendar_id, merged.id],
+    'UPDATE calendar_events SET title = ?, start = ?, end = ?, location = ?, description = ?, calendar_id = ?, color = ?, tag = ?, updated_at = datetime(\'now\') WHERE id = ?',
+    [merged.title, merged.start, merged.end, merged.location, merged.description, merged.calendar_id, merged.color, merged.tag, merged.id],
   )
   return { changes }
 }

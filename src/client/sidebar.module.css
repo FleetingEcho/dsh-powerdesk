@@ -472,6 +472,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  margin: 8px;
 }
 
 /* One tab's mounted content; inactive tabs stay mounted but hidden so
@@ -2847,4 +2848,91 @@
 .calendarEventTextarea:focus {
   outline: none;
   border-color: var(--dsw-alias-brand-primary);
+}
+
+/* CalendarEventModal footer: Delete sits apart from Cancel/Save (space-
+   between), only rendered in edit mode. */
+.calendarEventModalFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.calendarEventDeleteButton {
+  color: var(--dsw-alias-state-error-primary);
+  border-color: var(--dsw-alias-state-error-primary);
+}
+
+.calendarEventDeleteButton:hover {
+  background: var(--dsw-alias-state-error-primary);
+  color: var(--dsw-alias-label-primary-inverted);
+}
+
+.calendarEventDeleteConfirmButton {
+  background: var(--dsw-alias-state-error-primary);
+  color: var(--dsw-alias-label-primary-inverted);
+  border-color: var(--dsw-alias-state-error-primary);
+}
+
+.calendarEventDeleteConfirmButton:hover {
+  opacity: 0.85;
+}
+
+/* Color swatch picker: a fixed palette (see CalendarEventModal's
+   EVENT_COLORS) rather than a raw <input type=color>, so every event stays
+   visually consistent. */
+.calendarEventSwatchRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.calendarEventSwatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  box-shadow: 0 0 0 1px var(--dsw-alias-border-l2);
+  cursor: pointer;
+  padding: 0;
+}
+
+.calendarEventSwatchNone {
+  background: var(--dsw-alias-bg-layer-2);
+  background-image: linear-gradient(45deg, transparent 45%, var(--dsw-alias-state-error-primary) 45%, var(--dsw-alias-state-error-primary) 55%, transparent 55%);
+}
+
+.calendarEventSwatchSelected {
+  border-color: var(--dsw-alias-label-primary);
+}
+
+/* Event content: an optional tag badge above the default time/title text
+   (see CalendarView's renderEventContent). */
+.calendarEventContent {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+}
+
+.calendarEventTagBadge {
+  align-self: flex-start;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgb(255 255 255 / 25%);
+  font: var(--dsw-font-xxxs-strong-11);
+  line-height: 1.4;
+}
+
+.calendarEventTimeText {
+  font: var(--dsw-font-xxxs-11);
+  opacity: 0.85;
+}
+
+.calendarEventTitleText {
+  font: var(--dsw-font-xxs-strong-12);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

@@ -39,12 +39,20 @@
  * `info.revert()` on failure so the UI snaps back immediately rather than
  * silently drifting from the DB. `selectable` + `select` is genuine
  * drag-to-create: drag across empty grid space, release, open
- * CalendarEventModal seeded with the dragged range (a bare `window.prompt`
- * only asked for a title and gave no way to add a location/description or
- * fine-tune the times after a rough drag). `eventClick` → confirm-delete,
- * same as before. No standalone "new event" affordance — drag-to-create on
- * the grid is the only entry point, since the modal needs a start/end to
- * seed itself with and a button click has no natural one to anchor to.
+ * CalendarEventModal in 'create' mode seeded with the dragged range.
+ * `eventClick` opens the SAME modal in 'edit' mode, seeded from the clicked
+ * event's current fields (location/description/tag live only in
+ * `extendedProps` — FullCalendar has no first-class fields for them —
+ * color lives in `backgroundColor`); the modal's own Delete button (behind
+ * an inline confirm step, not a native `window.confirm`) is what removes an
+ * event now. No standalone "new event" affordance — drag-to-create on the
+ * grid is the only creation entry point, since the modal needs a start/end
+ * to seed itself with and a button click has no natural one to anchor to.
+ *
+ * Color contrast: `textColorFor()` derives readable event text (near-black
+ * or near-white) from the chosen background via a standard luminance
+ * formula, rather than storing a second "text color" field the user would
+ * have to also pick.
  *
  * Theming: FullCalendar themes purely through CSS custom properties on its
  * own `.fc` root class (see sidebar.module.css's Calendar section) — our

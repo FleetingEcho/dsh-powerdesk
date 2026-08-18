@@ -65,6 +65,26 @@ describeOrSkip('calendar-api', () => {
     expect(result.events[0]).toMatchObject({ id: 'e3', title: 'Review', start: '2026-08-18 14:30', end: '2026-08-18 16:00', location: 'Room A' })
   })
 
+  it('create/list round-trips color and tag', async () => {
+    await calendarCreate({ id: 'e3b', title: 'Retro', start: '2026-08-18 16:00', end: '2026-08-18 17:00', color: '#e5484d', tag: 'work' })
+    const result = await calendarList()
+    expect(result.events[0]).toMatchObject({ id: 'e3b', color: '#e5484d', tag: 'work' })
+  })
+
+  it('create omits color/tag from the returned event when not given', async () => {
+    const created = await calendarCreate({ id: 'e3c', start: '2026-08-18 09:00', end: '2026-08-18 09:30' })
+    expect(created.event).not.toHaveProperty('color')
+    expect(created.event).not.toHaveProperty('tag')
+  })
+
+  it('update can set color/tag on an existing event', async () => {
+    await calendarCreate({ id: 'e3d', start: '2026-08-18 09:00', end: '2026-08-18 09:30' })
+    const { changes } = await calendarUpdate({ id: 'e3d', color: '#0091ff', tag: 'urgent' })
+    expect(changes).toBe(1)
+    const result = await calendarList()
+    expect(result.events[0]).toMatchObject({ id: 'e3d', color: '#0091ff', tag: 'urgent' })
+  })
+
   it('update returns 0 changes for an unknown id', async () => {
     const { changes } = await calendarUpdate({ id: 'nope', start: '2026-08-18 14:30', end: '2026-08-18 16:00' })
     expect(changes).toBe(0)

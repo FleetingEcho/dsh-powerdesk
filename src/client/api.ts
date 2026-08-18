@@ -44,7 +44,7 @@ export type SearchDepsStatus =
     note?: string
   }
 
-/** One calendar event (mirror of the host's CalendarEvent; mirrors schedule-x). */
+/** One calendar event (mirror of the host's CalendarEvent). */
 export interface CalendarEvent {
   id: string
   title?: string
@@ -54,6 +54,10 @@ export interface CalendarEvent {
   location?: string
   description?: string
   calendarId?: string
+  /** A CSS hex color (e.g. '#e5484d') for the event's background/border. */
+  color?: string
+  /** A single free-text label/tag shown alongside the event title. */
+  tag?: string
 }
 
 /** SQLite native-binary dependency status (mirror of the host's RustSqliteDepsStatus). */
