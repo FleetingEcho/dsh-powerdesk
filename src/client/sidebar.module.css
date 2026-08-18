@@ -2795,3 +2795,56 @@
   text-transform: capitalize;
   box-shadow: none;
 }
+
+/* CalendarEventModal: drag-to-create form (title, start/end, location,
+   description) — replaces a bare window.prompt(). Field layout mirrors
+   FolderPicker's modal conventions (same footer/pill button classes). */
+.calendarEventForm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.calendarEventRow {
+  display: flex;
+  gap: 12px;
+}
+
+.calendarEventRow .calendarEventField {
+  flex: 1;
+  min-width: 0;
+}
+
+.calendarEventField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.calendarEventLabel {
+  font: var(--dsw-font-xxs-strong-12);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.calendarEventDateInput,
+.calendarEventTextarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 10px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font: var(--dsw-font-xxs-12);
+}
+
+.calendarEventTextarea {
+  resize: vertical;
+  font-family: inherit;
+}
+
+.calendarEventDateInput:focus,
+.calendarEventTextarea:focus {
+  outline: none;
+  border-color: var(--dsw-alias-brand-primary);
+}

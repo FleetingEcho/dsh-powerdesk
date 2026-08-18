@@ -38,8 +38,13 @@
  * (`eventResize`) — both persist via `calendarUpdate` and call
  * `info.revert()` on failure so the UI snaps back immediately rather than
  * silently drifting from the DB. `selectable` + `select` is genuine
- * drag-to-create: drag across empty grid space, release, prompt for a
- * title, `calendarCreate`. `eventClick` → confirm-delete, same as before.
+ * drag-to-create: drag across empty grid space, release, open
+ * CalendarEventModal seeded with the dragged range (a bare `window.prompt`
+ * only asked for a title and gave no way to add a location/description or
+ * fine-tune the times after a rough drag). `eventClick` → confirm-delete,
+ * same as before. No standalone "new event" affordance — drag-to-create on
+ * the grid is the only entry point, since the modal needs a start/end to
+ * seed itself with and a button click has no natural one to anchor to.
  *
  * Theming: FullCalendar themes purely through CSS custom properties on its
  * own `.fc` root class (see sidebar.module.css's Calendar section) — our

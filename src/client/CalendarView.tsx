@@ -38,8 +38,13 @@
  * (`eventResize`) — both persist via `calendarUpdate` and call
  * `info.revert()` on failure so the UI snaps back immediately rather than
  * silently drifting from the DB. `selectable` + `select` is genuine
- * drag-to-create: drag across empty grid space, release, prompt for a
- * title, `calendarCreate`. `eventClick` → confirm-delete, same as before.
+ * drag-to-create: drag across empty grid space, release, open
+ * CalendarEventModal seeded with the dragged range (a bare `window.prompt`
+ * only asked for a title and gave no way to add a location/description or
+ * fine-tune the times after a rough drag). `eventClick` → confirm-delete,
+ * same as before. No standalone "new event" affordance — drag-to-create on
+ * the grid is the only entry point, since the modal needs a start/end to
+ * seed itself with and a button click has no natural one to anchor to.
  *
  * Theming: FullCalendar themes purely through CSS custom properties on its
  * own `.fc` root class (see sidebar.module.css's Calendar section) — our
@@ -56,6 +61,7 @@ import dayGridPluginImport from '@fullcalendar/daygrid'
 import timeGridPluginImport from '@fullcalendar/timegrid'
 import interactionPluginImport, { type EventResizeDoneArg } from '@fullcalendar/interaction'
 import { api, ResttyApiError, type CalendarDepsStatus, type CalendarEvent } from './api.ts'
+import { CalendarEventModal, type CalendarEventDraft } from './CalendarEventModal.tsx'
 import { t } from './locales.ts'
 import css from './sidebar.module.css'
 
@@ -107,15 +113,6 @@ function dateToNaiveIso(d: Date): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
 }
 
-/** "Now, rounded up to the next hour" as a local Date (for the toolbar's
- *  "New event" affordance, which has no drag gesture to anchor a time). */
-function nextHourDate(): Date {
-  const d = new Date()
-  d.setMinutes(0, 0, 0)
-  d.setHours(d.getHours() + 1)
-  return d
-}
-
 /** Map a host `CalendarEvent` to the shape FullCalendar's `events` prop wants. */
 function toEventInput(e: CalendarEvent): EventInput {
   return {
@@ -146,6 +143,7 @@ export function CalendarView(props: CalendarViewProps): ReactNode {
   const calendarApiRef = useRef<CalendarApi | null>(null)
   const [state, setState] = useState<ViewState>({ status: 'loading' })
   const [events, setEvents] = useState<EventInput[]>([])
+  const [draftRange, setDraftRange] = useState<{ start: Date; end: Date } | null>(null)
 
   // Load deps + events once the tab is first visible.
   useEffect(() => {
@@ -187,17 +185,26 @@ export function CalendarView(props: CalendarViewProps): ReactNode {
     }).catch(() => { /* leave the local view as-is; next open refetches */ })
   }
 
-  /** Create a new 1-hour event starting at `start` (title via prompt).
-   *  Shared by the toolbar "New event" button (starts next hour) and
-   *  drag-to-create on the grid (starts/ends exactly where dragged). */
-  function createEventAt(start: Date, end: Date): void {
-    const title = window.prompt(t('calendarNewEventPrompt'), t('calendarUntitledEvent'))
-    if (title === null) return
+  // Drag-to-create opens the modal seeded with the dragged range; the grid's
+  // own selection highlight stays visible underneath while the form is open
+  // (unselect() only fires once the modal actually closes, below).
+  function handleSelect(info: DateSelectArg): void {
+    setDraftRange({ start: info.start, end: info.end })
+  }
+
+  function closeDraftModal(): void {
+    setDraftRange(null)
+    calendarApiRef.current?.unselect()
+  }
+
+  function handleCreate(draft: CalendarEventDraft): void {
     const event: CalendarEvent = {
       id: crypto.randomUUID(),
-      title: title === '' ? t('calendarUntitledEvent') : title,
-      start: dateToNaiveIso(start),
-      end: dateToNaiveIso(end),
+      title: draft.title,
+      start: dateToNaiveIso(draft.start),
+      end: dateToNaiveIso(draft.end),
+      ...(draft.location !== '' ? { location: draft.location } : {}),
+      ...(draft.description !== '' ? { description: draft.description } : {}),
     }
     api.calendarCreate(event).then(() => {
       setEvents((prev) => [...prev, toEventInput(event)])
@@ -206,11 +213,7 @@ export function CalendarView(props: CalendarViewProps): ReactNode {
         setState({ status: 'error', message: error.message })
       }
     })
-  }
-
-  function handleSelect(info: DateSelectArg): void {
-    createEventAt(info.start, info.end)
-    calendarApiRef.current?.unselect()
+    closeDraftModal()
   }
 
   function handleEventDrop(info: EventDropArg): void {
@@ -264,11 +267,6 @@ export function CalendarView(props: CalendarViewProps): ReactNode {
   }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-      <div style={{ padding: '6px 8px', flex: '0 0 auto' }}>
-        <button type="button" className={css.terminalRetry} onClick={() => { const start = nextHourDate(); createEventAt(start, new Date(start.getTime() + 60 * 60 * 1000)) }}>
-          {t('calendarNewEvent')}
-        </button>
-      </div>
       {/* FullCalendar's height:"100%" needs a parent with a definite height;
           flex:1 (basis 0) breaks the circular height dependency that
           flex-basis:auto would create. */}
@@ -290,6 +288,13 @@ export function CalendarView(props: CalendarViewProps): ReactNode {
           select={handleSelect}
         />
       </div>
+      <CalendarEventModal
+        open={draftRange !== null}
+        initialStart={draftRange?.start ?? null}
+        initialEnd={draftRange?.end ?? null}
+        onCreate={handleCreate}
+        onClose={closeDraftModal}
+      />
     </div>
   )
 }
