@@ -9,11 +9,17 @@
  *
  * Mount model: vanilla schedule-x (NOT the `@schedule-x/react` adapter — it
  * lags the core 4.6 line and would pin us to 4.1). `createCalendar()` returns
- * a `CalendarApp` with a `render(el)` method; we append it to a ref'd div and
- * `destroy()` on unmount. CRUD is wired through the calendar's `onEventUpdate`
- * callback (drag-resize → DB update) plus a "New event" affordance and
- * `onEventClick` → confirm-delete; each mutation syncs to SQLite via the API,
- * with the DB as source of truth (a failed mutation refetches and reconciles).
+ * a `CalendarApp` with a `render(el)` method. The render is split across two
+ * effects: the init effect creates the calendar (after loading deps + events)
+ * and sets state to 'ready'; a second effect renders it into the container —
+ * which only mounts once state is 'ready'. Calling `render()` while the
+ * component is still showing the loading placeholder would pass a null ref
+ * (the container div isn't in the DOM yet) and silently skip the render.
+ *
+ * CRUD is wired through the calendar's `onEventUpdate` callback (drag-resize →
+ * DB update) plus a "New event" affordance and `onEventClick` → confirm-delete;
+ * each mutation syncs to SQLite via the API, with the DB as source of truth
+ * (a failed mutation refetches and reconciles).
  *
  * schedule-x's `CalendarEventExternal` types `start`/`end` as Temporal types
  * but accepts ISO strings at runtime (the documented usage); we cast at the
@@ -83,10 +89,13 @@ export function CalendarView(props: CalendarViewProps): ReactNode {
   const calendarRef = useRef<CalendarApp | null>(null)
   const [state, setState] = useState<ViewState>({ status: 'loading' })
 
+  // ── Effect 1: init — load deps + events, create the calendar instance ──────
+  // Does NOT call calendar.render(): the container div only exists once state
+  // becomes 'ready' (the early returns for loading/error render different JSX),
+  // so rendering here would pass a null ref. The render happens in Effect 2.
   useEffect(() => {
     if (!visible) return
     let cancelled = false
-    let calendar: CalendarApp | null = null
 
     async function init(): Promise<void> {
       // 1. Check the native SQLite binary is present (mirrors search.deps).
@@ -107,8 +116,8 @@ export function CalendarView(props: CalendarViewProps): ReactNode {
         setState({ status: 'error', message: error instanceof Error ? error.message : String(error) })
         return
       }
-      // 3. Create + mount the schedule-x calendar (vanilla render, no React adapter).
-      calendar = createCalendar({
+      // 3. Create the schedule-x calendar (vanilla, no React adapter).
+      const calendar = createCalendar({
         views: [viewMonthGrid, viewWeek, viewDay],
         events: events as unknown as CalendarEventExternal[],
         isDark: isDarkScheme(),
@@ -125,7 +134,7 @@ export function CalendarView(props: CalendarViewProps): ReactNode {
               ...(event.location !== undefined ? { location: event.location } : {}),
               ...(event.description !== undefined ? { description: event.description } : {}),
               ...(event.calendarId !== undefined ? { calendarId: event.calendarId } : {}),
-            }).catch(() => { reconcile(calendar) })
+            }).catch(() => { reconcile(calendarRef.current) })
           },
           // Click an event → confirm + delete (DB is source of truth).
           onEventClick: (event: CalendarEventExternal) => {
@@ -133,8 +142,8 @@ export function CalendarView(props: CalendarViewProps): ReactNode {
             const label = event.title ?? t('calendarUntitledEvent')
             if (window.confirm(t('calendarDeleteConfirm', { title: label }))) {
               api.calendarDelete(id).then((result) => {
-                if (result.changes > 0) calendar?.events.remove(id)
-              }).catch(() => { reconcile(calendar) })
+                if (result.changes > 0) calendarRef.current?.events.remove(id)
+              }).catch(() => { reconcile(calendarRef.current) })
             }
           },
         },
@@ -144,7 +153,7 @@ export function CalendarView(props: CalendarViewProps): ReactNode {
         return
       }
       calendarRef.current = calendar
-      if (containerRef.current !== null) calendar.render(containerRef.current)
+      // State change → re-render shows the container div → Effect 2 renders.
       setState({ status: 'ready' })
     }
 
@@ -162,10 +171,24 @@ export function CalendarView(props: CalendarViewProps): ReactNode {
     return () => {
       cancelled = true
       unsubscribe()
-      calendar?.destroy()
+      calendarRef.current?.destroy()
       calendarRef.current = null
     }
   }, [visible])
+
+  // ── Effect 2: render the calendar into the container once it's mounted ────
+  // Runs after the 'ready' re-render commits the container div to the DOM, so
+  // containerRef.current is set. This is the fix for the "calendar never
+  // appears" bug: calling render() in Effect 1 passed a null ref because the
+  // container div wasn't in the DOM yet (the loading placeholder was showing).
+  useEffect(() => {
+    if (state.status !== 'ready') return
+    const cal = calendarRef.current
+    const el = containerRef.current
+    if (cal !== null && el !== null) {
+      cal.render(el)
+    }
+  }, [state.status])
 
   /** Create a new 1-hour event (title via prompt; drag to move/resize). */
   function createEvent(): void {
@@ -201,13 +224,17 @@ export function CalendarView(props: CalendarViewProps): ReactNode {
     )
   }
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <div style={{ padding: '6px 8px', flex: '0 0 auto' }}>
         <button type="button" className={css.terminalRetry} onClick={createEvent}>
           {t('calendarNewEvent')}
         </button>
       </div>
-      <div ref={containerRef} style={{ flex: '1 1 auto', minHeight: 0, overflow: 'auto' }} />
+      {/* schedule-x's .sx__calendar-wrapper sets height:100%, so this container
+          needs a definite height. flex:1 (basis 0) breaks the circular height
+          dependency that flex-basis:auto would create (container needs content
+          height, content needs container height → both collapse to 0). */}
+      <div ref={containerRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden' }} />
     </div>
   )
 }
